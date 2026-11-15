@@ -8,6 +8,10 @@
   to 40% where liquidity had grown (BNB Chain USDC/USDT, USDT side: 86% → 53%), and one plan moved by a bin.
 - Bins that are empty right now are no longer offered; the thin-bin check uses today's liquidity.
 - Volume pro-rata uses the volume the markout was measured on (token0 volume read a few percent low).
+- Hand-off to Metric: each planned bin shows the whole-percent share to set its bar to (they add up to 100), a Copy bins
+  button copies `#-10 47%, #-9 33%, #-8 20%, $1K of USDC`, and Open pool in Metric lands on the Liquidity tab. Metric's pool
+  page does not read bins or amounts from the URL yet, so the deposit itself is still set in Metric.
+- Dropped the "custom pricing" banner; the pool's tier stays on the page.
 - New independent check: `npm run test:sql` recomputes edges, eligibility, scores and every plan in SQLite from a raw API
   snapshot and compares with the app to the cent; it also checks the premise that bin APR = markout dollars ÷ average
   liquidity. Runs daily in CI.

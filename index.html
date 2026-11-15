@@ -134,6 +134,9 @@ button { cursor: pointer; }
 .orders .what { font-weight: 600; } .orders .usd { text-align: right; font-weight: 700; color: var(--brass); }
 .orders .sub { grid-column: 1 / -1; color: var(--fog); font-size: 15px; }
 .steps { margin: 14px 0 0; padding-left: 20px; color: var(--fog); } .steps li { margin: 5px 0; } .steps b { color: var(--paper); }
+.handoff { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 16px; align-items: stretch; }
+.handoff .go { margin-top: 0; }
+.pct { margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--well); color: var(--brass); font-size: 15px; }
 .go { display: block; margin-top: 16px; padding: 13px; text-align: center; background: var(--brass); color: var(--night); font-weight: 700; border-radius: 10px; text-decoration: none; }
 .go:hover { filter: brightness(1.06); }
 .share { margin-top: 18px; padding: 14px; background: var(--deck); border-radius: 10px; }
@@ -597,6 +600,16 @@ function shapeHint(plan) {
     : "Shape: drag each bar to the share above. Metric has no preset for this split.";
 }
 
+// Whole-percent shares that add up to exactly 100 (largest remainder), as you would type them into Metric's bars.
+function sharesPct(bins) {
+  const total = bins.reduce((s, b) => s + b.usd, 0) || 1;
+  const raw = bins.map((b) => ({ bin: b.bin, x: (b.usd / total) * 100 }));
+  const out = new Map(raw.map((r) => [r.bin, Math.floor(r.x)]));
+  let left = 100 - [...out.values()].reduce((s, v) => s + v, 0);
+  for (const r of [...raw].sort((a, b) => (b.x % 1) - (a.x % 1))) { if (left-- <= 0) break; out.set(r.bin, out.get(r.bin) + 1); }
+  return out;
+}
+
 // Count the big APR figure up from the last value, so a change in the plan reads as a change.
 function countUp(el, to) {
   const from = state.aprShown ?? 0;
@@ -619,13 +632,15 @@ function renderTicket(plan) {
     return;
   }
   const near = plan.bins.filter((b) => Math.abs(b.distance) <= 2).length;
+  const pcts = sharesPct(plan.bins);
+  const handoff = plan.bins.map((b) => `#${b.bin} ${pcts.get(b.bin)}%`).join(", ");
   const down = m.priceProviderStatus !== "healthy" || m.pauseLevel;
   $("plan").innerHTML = `
     ${down ? `<div class="warn bad">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Liquidity here earns nothing until it reopens.</div>` : ""}
     <div class="apr"><span id="aprNum">${fmtPct(state.aprShown ?? plan.aprBps)}</span><small>expected APR on ${esc(m.pair)}, about ${fmtUsd(plan.weeklyUsd)} a week after your own deposit dilutes each bin</small></div>
     <ol class="orders">
       ${plan.bins.map((b) => `<li>
-        <span class="what">Bin #${b.bin}, ${esc(tokenOf(b.side))}</span><span class="usd">${fmtUsd(b.usd)}</span>
+        <span class="what">Bin #${b.bin}, ${esc(tokenOf(b.side))} <span class="pct">${pcts.get(b.bin)}%</span></span><span class="usd">${fmtUsd(b.usd)}</span>
         <span class="sub">≈ ${fmtRange(b.priceRange)}, ${fmtPct(b.effAprBps)} expected, you’d own ${fmtShare(b.binShare)} of the bin</span>
       </li>`).join("")}
     </ol>
@@ -633,10 +648,14 @@ function renderTicket(plan) {
       <li>Open the pool in Metric and press <b>Clear</b>.</li>
       <li>Click bins <b>${plan.bins.map((b) => "#" + b.bin).join(", ")}</b>.</li>
       <li>${shapeHint(plan)}</li>
+      ${plan.bins.length > 1 ? `<li>Set the bars to <b>${handoff}</b> and enter <b>${fmtUsd(Number($("amount").value) || 0)}</b> of ${esc(tokenOf(state.have))}.</li>` : `<li>Enter <b>${fmtUsd(Number($("amount").value) || 0)}</b> of ${esc(tokenOf(state.have))}.</li>`}
       <li>Check the other token reads <b>0</b>. If it doesn’t, the pool moved and a bin changed side: refresh here.</li>
     </ol>
     ${near ? `<div class="warn">${near === 1 ? "One bin sits" : `${near} bins sit`} within 2 of the active bin. They earn the most and change side the fastest.</div>` : ""}
-    <a class="go" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open pool in Metric</a>
+    <div class="handoff">
+      <a class="go" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}?section=manage" target="_blank" rel="noopener">Open pool in Metric</a>
+      <button type="button" class="btn" id="copyBins" title="${esc(handoff)}">Copy bins</button>
+    </div>
     <div class="share">
       <h3>Share this plan</h3>
       <p>A card with your bins and the expected APR. Post it with the link so others can open the same plan.</p>
@@ -649,6 +668,10 @@ function renderTicket(plan) {
     </div>
     <div class="links"><button type="button" class="linkbtn" id="refresh">Refresh data</button><button type="button" class="linkbtn" id="copy">Copy link to this plan</button></div>`;
   countUp($("aprNum"), plan.aprBps);
+  $("copyBins").onclick = () => {
+    const text = `${m.pair}: ${handoff}, ${fmtUsd(Number($("amount").value) || 0)} of ${tokenOf(state.have)}`;
+    navigator.clipboard?.writeText(text).then(() => setStatus(`Copied: ${text}`), () => setStatus(text));
+  };
   drawCard($("card"), plan);
   $("refresh").onclick = () => { BP.clearCache(); loadPool().then(prefetchWindows).catch(fail); };
   $("copy").onclick = () => navigator.clipboard?.writeText(location.href).then(() => setStatus("Link copied."), () => setStatus(location.href));

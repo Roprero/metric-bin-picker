@@ -214,7 +214,6 @@
     const codes = (meta.classificationSummary && meta.classificationSummary.reasonCodes) || [];
     if (tier === "red") w.push({ level: "bad", text: "High Risk tier: one transaction may drain a bin. Read the reasons before depositing." });
     if (tier === "unclassified") w.push({ level: "warn", text: "Pool is not classified yet." });
-    if (codes.includes("app_missing")) w.push({ level: "warn", text: "Custom pricing, not anchored to Chainlink/Pyth: you trust the curator's code." });
     if (codes.includes("curator_unverified")) w.push({ level: "warn", text: "Curator is not verified by Metric." });
     if (codes.includes("price_provider_mutable")) w.push({ level: "bad", text: "Price provider can be replaced after you deposit." });
     if (codes.includes("remove_liquidity_extension_present")) w.push({ level: "bad", text: "A withdrawal extension can block your exit." });
