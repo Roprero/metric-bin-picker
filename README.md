@@ -8,7 +8,7 @@ thin to trust, and tells you which bins to click and how to split.
 
 **Live:** https://roprero.github.io/metric-bin-picker/ · read-only, no wallet connection, no sign-up.
 
-![Bin Picker on the USDC/USDT pool](docs/screenshot.png)
+![Bin Picker on the USDC/USDT pool](docs/bin-picker-0.7.png)
 
 ## Use it in three steps
 
