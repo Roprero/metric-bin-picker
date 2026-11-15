@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bin Picker for Metric</title>
+<meta name="description" content="Pick the Metric bins that actually earn: per-bin markout, volume and liquidity, ranked for the token you hold.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='8' width='3' height='7' fill='%2338e8d8'/><rect x='6' y='3' width='3' height='12' fill='%2338e8d8'/><rect x='11' y='6' width='3' height='9' fill='%2338e8d8'/></svg>">
+<style>
+:root {
+  --bg: #121314; --panel: #1b1c1e; --panel2: #222326; --line: #2e3034;
+  --text: #ecedee; --muted: #8b8f96; --faint: #5d6168;
+  --accent: #38e8d8; --accent-dim: #1f7f77; --pick: #8be4ff;
+  --good: #3ddc97; --warn: #f2b84b; --bad: #ef6b73;
+  --t0: #4d8dff; --t1: #26c29a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+a { color: var(--pick); text-decoration: none; } a:hover { text-decoration: underline; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+header .sub { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.controls { display: grid; grid-template-columns: 110px minmax(220px, 1fr) 130px 170px 110px 120px; gap: 10px; align-items: end; }
+label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
+select, input { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: inherit; }
+select:focus, input:focus { outline: 2px solid var(--accent-dim); border-color: transparent; }
+.seg { display: flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+.seg button { flex: 1; background: none; border: 0; color: var(--muted); font: inherit; padding: 6px 4px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.seg button.on { background: #33363b; color: var(--text); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "pool plan" "table plan"; align-items: start; gap: 16px; margin-top: 16px; }
+#poolcard { grid-area: pool; } #plan { grid-area: plan; position: sticky; top: 16px; } .tablebox { grid-area: table; }
+.poolhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pair { font-size: 20px; font-weight: 600; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-left: 8px; vertical-align: 2px; }
+.badge.green { color: var(--good); border-color: #2a6e52; } .badge.yellow { color: var(--warn); border-color: #6e5726; }
+.badge.red { color: var(--bad); border-color: #70343a; } .badge.unclassified { color: var(--muted); border-color: var(--line); }
+.stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.stats b { display: block; color: var(--text); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.warns { margin-top: 12px; display: grid; gap: 6px; }
+.warn { padding: 8px 10px; border-radius: 9px; font-size: 13px; border: 1px solid; }
+.warn.warn { color: var(--warn); border-color: #5a4720; background: #241f14; } .warn.bad { color: var(--bad); border-color: #5d2a2f; background: #261618; }
+.chartbox { position: relative; margin-top: 16px; }
+svg { display: block; width: 100%; height: 260px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; background: #0d0e0f; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; min-width: 210px; display: none; z-index: 2; }
+.tip .r { display: flex; justify-content: space-between; gap: 14px; } .tip .r span:first-child { color: var(--muted); }
+.plan h2, .tablebox h2 { font-size: 15px; margin: 0 0 10px; }
+.big { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.planrow { display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); align-items: center; font-variant-numeric: tabular-nums; }
+.planrow .idx { font-weight: 600; color: var(--pick); }
+.planrow .dev { color: var(--muted); font-size: 12px; }
+.planrow .usd { text-align: right; } .planrow .usd small { display: block; color: var(--muted); }
+.steps { margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; } .steps li { margin: 4px 0; } .steps b { color: var(--text); }
+.btn { display: inline-block; margin-top: 12px; background: var(--pick); color: #0b1418; font-weight: 600; padding: 10px 14px; border-radius: 10px; }
+.btn:hover { text-decoration: none; filter: brightness(1.05); }
+.empty { color: var(--muted); padding: 12px 0; }
+.tablebox { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+tr.pick td { background: rgba(139, 228, 255, 0.07); } tr.pick td:first-child { color: var(--pick); font-weight: 600; }
+tr.cur td { background: rgba(255, 255, 255, 0.04); }
+tr.dim td { color: var(--faint); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.side0 { color: var(--t0); } .side1 { color: var(--t1); } .sideb { color: var(--muted); }
+.status { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 18px; }
+footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.6; }
+@media (max-width: 960px) {
+  .controls { grid-template-columns: 1fr 1fr; }
+  .controls .poolsel { grid-column: 1 / -1; }
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pool" "plan" "table"; }
+  #plan { position: static; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bin Picker</h1>
+    <span class="sub">for <a href="https://app.metric.xyz" target="_blank" rel="noopener">Metric</a> · find the bins that actually earn</span>
+  </header>
+
+  <div class="panel controls">
+    <div><label for="chain">Chain</label><select id="chain"></select></div>
+    <div class="poolsel"><label for="pool">Pool</label><select id="pool"><option>Loading…</option></select></div>
+    <div><label for="amount">Amount, $</label><input id="amount" type="number" min="1" step="any" value="1000"></div>
+    <div><label>I hold</label><div class="seg" id="have"></div></div>
+    <div><label for="count">Bins</label><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>
+    <div><label>Split</label><div class="seg" id="mode"><button data-v="spread" class="on" title="Weights proportional to each bin's score">Spread</button><button data-v="max" title="Maximise APR after your own dilution">Max</button></div></div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="grid">
+    <div class="panel" id="poolcard"><div class="empty">Pick a pool.</div></div>
+    <div class="panel plan" id="plan"><div class="empty">Your plan appears here.</div></div>
+    <div class="panel tablebox"><h2>All bins</h2><div id="table"></div></div>
+  </div>
+
+  <footer>
+    Data: Metric public API (per-bin analytics for 7d and 24h). Score = 0.6 × 7d markout APR + 0.4 × 24h markout APR, minus a quarter of a negative trading-PnL APR; bins with under 100 swaps in 7d are skipped.
+    Markout is a past measurement, not a forecast. Bins move with the pool: a bin above the active one holds token0, below holds token1, and they flip as the pool trades.
+    Not affiliated with Metric. Providing liquidity can lose money; check the pool's tier first.
+  </footer>
+</div>
+
+<script src="core.js"></script>
+<script>
+"use strict";
+const BP = window.BinPicker;
+const $ = (id) => document.getElementById(id);
+const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", mode: "spread", sort: { key: "bin", dir: 1 } };
+
+const fmtUsd = (v) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(2)}`;
+const fmtPct = (bps) => bps === null || bps === undefined ? "—" : `${(bps / 100).toFixed(1)}%`;
+const cls = (bps) => bps === null || bps === undefined ? "" : bps >= 0 ? "pos" : "neg";
+const fmtDev = (e) => e ? `${e[0] >= 0 ? "+" : ""}${e[0].toFixed(5)}…${e[1] >= 0 ? "+" : ""}${e[1].toFixed(5)}%` : "";
+const sym = (side) => side === "token0" ? state.meta.token0Symbol : side === "token1" ? state.meta.token1Symbol : "both";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function save() {
+  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, mode: state.mode });
+  history.replaceState(null, "", `?${p}`);
+  try { localStorage.setItem("binpicker", p.toString()); } catch {}
+}
+function restore() {
+  let p = new URLSearchParams(location.search);
+  if (![...p.keys()].length) { try { p = new URLSearchParams(localStorage.getItem("binpicker") || ""); } catch {} }
+  if (p.get("chain")) state.chain = Number(p.get("chain"));
+  if (p.get("pool")) state.pool = p.get("pool");
+  if (p.get("amt")) $("amount").value = p.get("amt");
+  if (p.get("have")) state.have = p.get("have");
+  if (p.get("n")) $("count").value = p.get("n");
+  if (p.get("mode")) state.mode = p.get("mode");
+}
+
+function setStatus(t) { $("status").textContent = t; }
+
+async function loadChains() {
+  const chains = await BP.api.chains();
+  $("chain").innerHTML = chains.map((c) => `<option value="${c.chainId}">${esc(c.name)}</option>`).join("");
+  $("chain").value = String(state.chain);
+}
+
+async function loadPools() {
+  setStatus("Loading pools…");
+  state.pools = await BP.api.pools(state.chain);
+  const opt = (p) => {
+    const tier = p.classificationSummary?.tierQualification || "";
+    const apr = p.markoutByWindow?.["7d"]?.byHorizon?.["5m"]?.aprBps;
+    return `<option value="${p.poolAddress}">${esc(p.pair)} · ${tier} · TVL ${fmtUsd(p.tvlFiat || 0)} · 7d markout ${fmtPct(apr)} · ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
+  };
+  $("pool").innerHTML = state.pools.map(opt).join("");
+  if (!state.pool || !state.pools.some((p) => p.poolAddress.toLowerCase() === state.pool.toLowerCase())) state.pool = state.pools[0]?.poolAddress || null;
+  $("pool").value = state.pools.find((p) => p.poolAddress.toLowerCase() === state.pool?.toLowerCase())?.poolAddress || "";
+  setStatus("");
+}
+
+async function loadPool() {
+  if (!state.pool) return;
+  setStatus("Loading bins…");
+  const [meta, b7, b24] = await Promise.all([
+    BP.api.pool(state.chain, state.pool), BP.api.bins(state.chain, state.pool, "7d"), BP.api.bins(state.chain, state.pool, "24h"),
+  ]);
+  state.meta = meta;
+  state.curBin = b7.curBinIdx;
+  state.rows = BP.scoreBins(b7.bins, b24.bins, b7.curBinIdx);
+  renderHave();
+  setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin}`);
+  render();
+}
+
+function renderHave() {
+  const m = state.meta;
+  const opts = [["token0", m.token0Symbol], ["token1", m.token1Symbol], ["both", "Both"]];
+  $("have").innerHTML = opts.map(([v, t]) => `<button data-v="${v}" class="${state.have === v ? "on" : ""}">${esc(t)}</button>`).join("");
+}
+
+function currentPlan() {
+  return BP.plan(state.rows, { amountUsd: Number($("amount").value) || 0, have: state.have, count: Number($("count").value), mode: state.mode });
+}
+
+function render() {
+  if (!state.meta) return;
+  const p = currentPlan();
+  renderPool(p); renderChart(p); renderPlan(p); renderTable(p); save();
+}
+
+function renderPool() {
+  const m = state.meta;
+  const tier = m.classificationSummary?.tierQualification || "unclassified";
+  const mk = m.markoutByWindow?.["7d"]?.byHorizon?.["5m"]?.aprBps;
+  const warns = BP.poolWarnings(m);
+  if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: "No swaps in the last 24h (market closed or quiet pool). Bins are ranked on the last 7 days only." });
+  $("poolcard").innerHTML = `
+    <div class="poolhead">
+      <div><span class="pair">${esc(m.pair)}</span><span class="badge ${tier}">${tier}</span></div>
+      <a href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open in Metric ↗</a>
+    </div>
+    <div class="stats">
+      <div><b>${fmtUsd(m.tvlFiat || 0)}</b>TVL</div>
+      <div><b>${fmtUsd(m.volumeByWindow?.["7d"] || 0)}</b>Volume 7d</div>
+      <div><b class="${cls(mk)}">${fmtPct(mk)}</b>Pool markout APR 7d</div>
+      <div><b>${esc(m.adminUsername || "—")}${m.verifiedAdmin ? " ✓" : ""}</b>Curator</div>
+      <div><b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b>Curator + Metric cut</div>
+    </div>
+    ${warns.length ? `<div class="warns">${warns.map((w) => `<div class="warn ${w.level}">${esc(w.text)}</div>`).join("")}</div>` : ""}
+    <div class="chartbox"><svg id="chart" role="img" aria-label="Liquidity per bin, coloured by score"></svg><div class="tip" id="tip"></div></div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>bar height: liquidity · brightness: score</span>
+      <span><i style="background:var(--pick)"></i>picked for you</span>
+      <span><i style="background:#fff"></i>active bin</span>
+      <span><i style="background:var(--bad)"></i>losing (score ≤ 0)</span>
+    </div>`;
+}
+
+function renderChart(plan) {
+  const svg = $("chart"); if (!svg) return;
+  // Show the traded range (plus a few bins of margin), the active bin and the picks; idle tails only add noise.
+  const traded = state.rows.filter((r) => r.swaps7 > 0).map((r) => r.bin);
+  const keep = [...traded, state.curBin, ...plan.bins.map((b) => b.bin)];
+  const lo = Math.min(...keep) - 3, hi = Math.max(...keep) + 3;
+  const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps7 > 0)).sort((a, b) => a.bin - b.bin);
+  if (!rows.length) { svg.innerHTML = ""; return; }
+  const W = svg.clientWidth || 700, H = 260, pad = 22, bw = (W - 8) / rows.length;
+  const maxL = Math.max(...rows.map((r) => r.liquidity));
+  const maxS = Math.max(1, ...rows.map((r) => r.score || 0));
+  const picked = new Set(plan.bins.map((b) => b.bin));
+  let out = "";
+  rows.forEach((r, k) => {
+    const h = Math.max(2, (r.liquidity / maxL) * (H - pad - 14));
+    const x = 4 + k * bw, y = H - pad - h;
+    let fill;
+    if (!r.eligible && r.score !== null && r.score <= 0 || (r.mk7 !== null && r.mk7 < 0)) fill = "var(--bad)";
+    else if (!r.eligible) fill = "#3a3d42";
+    else fill = `rgba(56,232,216,${0.25 + 0.75 * Math.max(0, r.score) / maxS})`;
+    const stroke = picked.has(r.bin) ? `stroke="var(--pick)" stroke-width="2"` : "";
+    out += `<rect data-bin="${r.bin}" x="${x + 1}" y="${y}" width="${Math.max(1, bw - 2)}" height="${h}" rx="2" fill="${fill}" ${stroke}/>`;
+    if (picked.has(r.bin)) out += `<path d="M${x + bw / 2 - 4},${y - 9} l4,6 l4,-6 z" fill="var(--pick)"/>`;
+    if (r.bin === state.curBin) out += `<line x1="${x + bw / 2}" x2="${x + bw / 2}" y1="6" y2="${H - pad}" stroke="#fff" stroke-dasharray="3,3" opacity="0.7"/>`;
+    if (r.bin % (rows.length > 40 ? 10 : 5) === 0) out += `<text x="${x + bw / 2}" y="${H - 6}" fill="var(--faint)" font-size="10" text-anchor="middle">#${r.bin}</text>`;
+  });
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = out;
+  const tip = $("tip");
+  svg.onmousemove = (ev) => {
+    const bin = ev.target.getAttribute && ev.target.getAttribute("data-bin");
+    if (bin === null) { tip.style.display = "none"; return; }
+    const r = state.rows.find((x) => x.bin === Number(bin));
+    tip.innerHTML = `<div style="margin-bottom:6px"><b>#${r.bin}</b> <span style="color:var(--muted)">${fmtDev(r.edges)}</span></div>
+      <div class="r"><span>Holds</span><span>${esc(sym(r.side))}</span></div>
+      <div class="r"><span>Liquidity</span><span>${fmtUsd(r.liquidity)}</span></div>
+      <div class="r"><span>Volume 7d</span><span>${fmtUsd(r.volume7)}</span></div>
+      <div class="r"><span>Swaps 7d / 24h</span><span>${r.swaps7} / ${r.swaps24}</span></div>
+      <div class="r"><span>Markout 7d / 24h</span><span><span class="${cls(r.mk7)}">${fmtPct(r.mk7)}</span> / <span class="${cls(r.mk24)}">${fmtPct(r.mk24)}</span></span></div>
+      <div class="r"><span>Trading PnL 7d</span><span class="${cls(r.pnl7)}">${fmtPct(r.pnl7)}</span></div>
+      <div class="r"><span>Score</span><span>${r.eligible ? fmtPct(r.score) : esc(r.reasons[0])}</span></div>`;
+    const box = svg.parentElement.getBoundingClientRect();
+    tip.style.display = "block";
+    tip.style.left = `${Math.min(ev.clientX - box.left + 12, box.width - 230)}px`;
+    tip.style.top = `${Math.max(0, ev.clientY - box.top - 150)}px`;
+  };
+  svg.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+function renderPlan(plan) {
+  const m = state.meta;
+  if (!plan.bins.length) {
+    const side = state.have === "both" ? "either side" : `the ${sym(state.have)} side`;
+    $("plan").innerHTML = `<h2>Your plan</h2><div class="empty">No bin on ${esc(side)} passes the filters right now. Try the other token or a different pool.</div>`;
+    return;
+  }
+  const near = plan.bins.filter((b) => Math.abs(b.distance) <= 2).length;
+  const down = m.priceProviderStatus !== "healthy" || m.pauseLevel;
+  $("plan").innerHTML = `
+    <h2>Your plan</h2>
+    ${down ? `<div class="warn bad" style="margin-bottom:10px">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Your liquidity would earn nothing until it reopens.</div>` : ""}
+    <div class="big ${cls(plan.aprBps)}">${fmtPct(plan.aprBps)}</div>
+    <div style="color:var(--muted)">expected APR after your own dilution · ≈ ${fmtUsd(plan.weeklyUsd)} / week</div>
+    <div style="margin-top:12px">
+      ${plan.bins.map((b) => `<div class="planrow">
+        <span class="idx">#${b.bin}</span>
+        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${fmtDev(b.edges)} · ${esc(sym(b.side))}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mk24)}">${fmtPct(b.mk24)}</span></span></span>
+        <span class="usd">${fmtUsd(b.usd)}<small>${fmtPct(b.effAprBps)}</small></span>
+      </div>`).join("")}
+    </div>
+    <ol class="steps">
+      <li>Open the pool in Metric and press <b>Clear</b>.</li>
+      <li>Click bins <b>${plan.bins.map((b) => "#" + b.bin).join(", ")}</b> (hover a bar to see its number).</li>
+      <li>Shape: <b>${plan.bins.length > 1 ? "APR pro-rata" : "Single bin"}</b>, or drag bars to the shares above.</li>
+      <li>Check the other token reads <b>0</b>: if not, the pool moved and a bin flipped side. Refresh here.</li>
+    </ol>
+    ${near ? `<div class="warn warn" style="margin-top:10px">${near} bin(s) sit within 2 of the active bin #${state.curBin}. They earn the most but flip side fastest.</div>` : ""}
+    <a class="btn" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open pool in Metric ↗</a>
+    <div style="margin-top:10px"><a href="#" id="refresh">↻ Refresh data</a> · <a href="#" id="copy">Copy plan</a></div>`;
+  $("refresh").onclick = (e) => { e.preventDefault(); loadPool().catch(fail); };
+  $("copy").onclick = (e) => {
+    e.preventDefault();
+    const txt = `${m.pair} (${m.poolAddress}) on chain ${state.chain}: ` + plan.bins.map((b) => `#${b.bin} ${fmtUsd(b.usd)}`).join(", ") + ` · est. APR ${fmtPct(plan.aprBps)} · ${location.href}`;
+    navigator.clipboard?.writeText(txt).then(() => setStatus("Plan copied."), () => setStatus(txt));
+  };
+}
+
+const COLS = [
+  ["bin", "Bin"], ["side", "Holds"], ["swaps7", "Swaps 7d"], ["volume7", "Volume 7d"], ["liquidity", "Liquidity"],
+  ["mk7", "Markout 7d"], ["mk24", "Markout 24h"], ["pnl7", "PnL 7d"], ["score", "Score"],
+];
+function renderTable(plan) {
+  const picked = new Set(plan.bins.map((b) => b.bin));
+  const rows = state.rows.filter((r) => r.liquidity > 1 || r.swaps7 > 0);
+  const { key, dir } = state.sort;
+  rows.sort((a, b) => ((a[key] ?? -Infinity) > (b[key] ?? -Infinity) ? 1 : (a[key] ?? -Infinity) < (b[key] ?? -Infinity) ? -1 : 0) * dir);
+  const sideCls = { token0: "side0", token1: "side1", both: "sideb" };
+  $("table").innerHTML = `<table><thead><tr>${COLS.map(([k, t]) => `<th data-k="${k}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map((r) => `<tr class="${picked.has(r.bin) ? "pick" : r.bin === state.curBin ? "cur" : !r.eligible ? "dim" : ""}" title="${esc(r.reasons.join("; "))}">
+      <td>#${r.bin}${r.bin === state.curBin ? " · active" : ""}</td>
+      <td class="${sideCls[r.side]}">${esc(sym(r.side))}</td>
+      <td>${r.swaps7}</td><td>${fmtUsd(r.volume7)}</td><td>${fmtUsd(r.liquidity)}</td>
+      <td class="${cls(r.mk7)}">${fmtPct(r.mk7)}</td><td class="${cls(r.mk24)}">${fmtPct(r.mk24)}</td>
+      <td class="${cls(r.pnl7)}">${fmtPct(r.pnl7)}</td><td>${r.eligible ? fmtPct(r.score) : "—"}</td></tr>`).join("")}
+  </tbody></table>`;
+  $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
+    const k = th.dataset.k;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : k === "bin" ? 1 : -1 };
+    renderTable(currentPlan());
+  });
+}
+
+function fail(e) { console.error(e); setStatus(`Error: ${e.message}. The Metric API may be busy; try again.`); }
+
+$("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; await loadPools(); await loadPool(); };
+$("pool").onchange = () => { state.pool = $("pool").value; loadPool().catch(fail); };
+$("amount").oninput = render; $("count").onchange = render;
+$("have").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.have = v; renderHave(); render(); };
+$("mode").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.mode = v; [...$("mode").children].forEach((b) => b.classList.toggle("on", b.dataset.v === v)); render(); };
+window.addEventListener("resize", () => state.meta && renderChart(currentPlan()));
+
+(async () => {
+  restore();
+  [...$("mode").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.mode));
+  try { await loadChains(); await loadPools(); await loadPool(); } catch (e) { fail(e); }
+})();
+</script>
+</body>
+</html>
