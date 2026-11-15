@@ -4,17 +4,31 @@
   "use strict";
 
   const API = "https://api.metric.xyz/public/v1";
+  const WINDOWS = ["24h", "7d", "30d", "all"]; // what /analytics/bins accepts, same as the Metric app
+  const HORIZONS = ["1m", "5m", "30m"];        // markout horizons, same as the Metric app
 
   const DEFAULTS = {
-    horizon: "5m",       // markout horizon: 1m | 5m | 30m
-    minSwaps: 100,       // 7d swaps a bin needs to be considered at all
-    requireRecent: true, // the bin must also have traded in the last 24h: old flow says little about tomorrow
+    window: "7d",        // main window the score is built on
+    horizon: "5m",       // markout horizon
+    wMain: 0.6,          // weight of the main-window markout APR in the score
+    wDay: 0.4,           // weight of the 24h markout APR (recency); unused when the main window is 24h
+    pnlPenalty: 0.25,    // share of a negative trading-PnL APR subtracted from the score
+    minSwaps: { "24h": 15, "7d": 100, "30d": 300, all: 300 }, // swaps a bin needs in the main window
+    requireRecent: true, // the bin must also have traded in the last 24h, unless the whole pool was idle
     minLiquidityUsd: 1000,   // below this a bin's APR is noise (a few swaps over a tiny base)
     minLiquidityShare: 0.02, // ...and it must hold at least this share of the pool's largest bin
-    w7d: 0.6,            // weight of the 7d markout APR in the score
-    w24h: 0.4,           // weight of the 24h markout APR (recency)
-    pnlPenalty: 0.25,    // share of a negative trading-PnL APR subtracted from the score
     skipNearCurrent: 1,  // skip bins this close to the active one: the pool moves while you click, and they flip sides
+  };
+
+  // How each strategy picks bins and weighs them. `rank` is 1 for the bin closest to the price.
+  const STRATEGIES = {
+    score:  { pick: "best",    label: "Top score",       hint: "Best recent markout, weighted by score." },
+    max:    { pick: "best",    label: "Max APR",         hint: "Water-fills by APR after your own dilution. Matters for large deposits." },
+    flat:   { pick: "best",    label: "Flat",            hint: "Best bins, equal amounts." },
+    volume: { pick: "best",    label: "Volume pro-rata", hint: "Best bins, weighted by the volume that crossed them." },
+    spot:   { pick: "nearest", label: "Spot",            hint: "Closest earning bins to the price, equal amounts. Trades most, flips side most." },
+    curve:  { pick: "nearest", label: "Curve",           hint: "Closest earning bins, most weight next to the price." },
+    bidask: { pick: "nearest", label: "Bid-Ask",         hint: "Closest earning bins, most weight on the far ones. Catches bigger moves." },
   };
 
   // Bin edges in percent deviation from the reference. Bin 0 starts at 0%, bins above stack up, bins below stack down.
@@ -37,34 +51,37 @@
   const liqFiat = (b) => (b.token0.avgLiquidityFiat || 0) + (b.token1.avgLiquidityFiat || 0);
   const mkApr = (b, h) => (b && b.markoutByHorizon && b.markoutByHorizon[h] ? b.markoutByHorizon[h].aprBps : null);
 
-  // Merge the 7d and 24h snapshots into one row per bin with a score in bps.
-  function scoreBins(bins7d, bins24h, curBin, opts = {}) {
+  // One row per bin, scored on the main window with the last 24h as a recency check. Score is in bps of APR.
+  //   binsMain: /analytics/bins for opts.window;  bins24h: the same for 24h (pass binsMain again when the window is 24h)
+  function scoreBins(binsMain, bins24h, curBin, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
+    const single = o.window === "24h";
     const day = new Map((bins24h || []).map((b) => [Number(b.bin), b]));
-    const edges = binEdges(bins7d);
-    const minLiq = Math.max(o.minLiquidityUsd, o.minLiquidityShare * Math.max(0, ...bins7d.map(liqFiat)));
-    // A pool with no swaps at all in 24h (a closed stock market, a quiet weekend) is ranked on 7d alone.
+    const edges = binEdges(binsMain);
+    const minLiq = Math.max(o.minLiquidityUsd, o.minLiquidityShare * Math.max(0, ...binsMain.map(liqFiat)));
+    const minSwaps = typeof o.minSwaps === "number" ? o.minSwaps : o.minSwaps[o.window];
+    // A pool with no swaps at all in 24h (a closed stock market, a quiet weekend) is ranked on the main window alone.
     const poolIdle24h = !(bins24h || []).some((b) => Number(b.swapCount) > 0);
-    const needRecent = o.requireRecent && !poolIdle24h;
-    return bins7d.map((b) => {
+    const needRecent = o.requireRecent && !poolIdle24h && !single;
+    return binsMain.map((b) => {
       const i = Number(b.bin);
       const b24 = day.get(i);
-      const mk7 = mkApr(b, o.horizon);
-      const mk24 = mkApr(b24, o.horizon);
-      const pnl7 = b.pnlAprBps;
-      const swaps7 = Number(b.swapCount);
+      const mkMain = mkApr(b, o.horizon);
+      const swaps24 = b24 ? Number(b24.swapCount) : 0;
+      const mkDay = swaps24 > 0 ? mkApr(b24, o.horizon) : null; // a bin with no swaps has no 24h markout, not a zero one
+      const pnl = b.pnlAprBps;
+      const swaps = Number(b.swapCount);
       const liq = liqFiat(b);
       const reasons = [];
       let score = null;
-      const swaps24 = b24 ? Number(b24.swapCount) : 0;
-      if (swaps7 < o.minSwaps) reasons.push(`fewer than ${o.minSwaps} swaps in 7d`);
+      if (swaps < minSwaps) reasons.push(`fewer than ${minSwaps} swaps in ${o.window}`);
       if (needRecent && swaps24 === 0) reasons.push("no swaps in the last 24h");
-      if (mk7 === null) reasons.push("no 7d markout");
+      if (mkMain === null) reasons.push(`no ${o.window} markout`);
       if (!(liq > 0)) reasons.push("no liquidity");
-      else if (liq < minLiq) reasons.push(`too thin to trust its APR (< ${Math.round(minLiq)} $)`);
+      else if (liq < minLiq) reasons.push(`too thin to trust its APR (< $${Math.round(minLiq)})`);
       if (!reasons.length) {
-        score = o.w7d * mk7 + o.w24h * (mk24 === null || swaps24 === 0 ? mk7 : mk24);
-        if (pnl7 !== null && pnl7 < 0) score += o.pnlPenalty * pnl7;
+        score = single || mkDay === null ? mkMain : o.wMain * mkMain + o.wDay * mkDay;
+        if (pnl !== null && pnl !== undefined && pnl < 0) score += o.pnlPenalty * pnl;
         if (score <= 0) reasons.push("score ≤ 0");
       }
       return {
@@ -72,13 +89,11 @@
         edges: edges.get(i),
         side: sideOf(i, curBin),
         distance: i - curBin,
-        swaps7,
-        swaps24,
-        volume7: b.token0.volumeFiat || 0,
+        swaps, swaps24,
+        volume: b.token0.volumeFiat || 0,
         liquidity: liq,
-        reserve: (b.token0.reserveFiat || 0) + (b.token1.reserveFiat || 0),
-        mk7, mk24, pnl7,
-        cooling: mk24 !== null && mk24 < 0,
+        mkMain, mkDay, pnl,
+        cooling: mkDay !== null && mkDay < 0,
         poolIdle24h,
         score,
         eligible: !reasons.length,
@@ -90,21 +105,36 @@
   // APR you would earn on `x` dollars added to a bin that holds `liq` dollars: the bin's flow is shared with you.
   const dilutedApr = (score, liq, x) => (x > 0 ? (score * liq) / (liq + x) : score);
 
-  // Pick bins on the side the user can fund and split `amountUsd` across them.
-  //   have:  "token0" | "token1" | "both"
-  //   mode:  "spread" — top `count` bins, weights ∝ score; "max" — water-fill by marginal diluted APR
-  function plan(rows, { amountUsd, have, count = 3, mode = "spread", skipNearCurrent = DEFAULTS.skipNearCurrent }) {
+  // Pick bins on the side the user can fund and split `amountUsd` across them with a strategy from STRATEGIES.
+  //   have: "token0" | "token1" | "both"
+  function plan(rows, { amountUsd, have, count = 3, strategy = "score", skipNearCurrent = DEFAULTS.skipNearCurrent }) {
+    const s = STRATEGIES[strategy];
+    if (!s) throw new Error(`unknown strategy ${strategy}`);
+    const n = Math.max(1, count);
     const fundable = rows.filter((r) =>
       r.eligible &&
       (have === "both" || r.side === have) &&
       Math.abs(r.distance) > skipNearCurrent);
-    const top = [...fundable].sort((a, b) => b.score - a.score).slice(0, Math.max(1, count));
-    if (!top.length || !(amountUsd > 0)) return { bins: [], aprBps: null, weeklyUsd: 0 };
+    const top = s.pick === "nearest"
+      ? [...fundable].sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance) || b.score - a.score).slice(0, n)
+      : [...fundable].sort((a, b) => b.score - a.score).slice(0, n);
+    if (!top.length || !(amountUsd > 0)) return { bins: [], aprBps: null, weeklyUsd: 0, strategy };
+
+    // rank 1 = closest to the price; with "both", bins on each side are ranked by their own distance
+    const rank = new Map([...top].sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance)).map((r, k) => [r.bin, k + 1]));
+    const weight = {
+      score: (r) => r.score,
+      flat: () => 1,
+      volume: (r) => Math.max(r.volume, 1e-9),
+      spot: () => 1,
+      curve: (r) => 1 / rank.get(r.bin),
+      bidask: (r) => rank.get(r.bin),
+    };
 
     const alloc = new Map(top.map((r) => [r.bin, 0]));
-    if (mode === "max") {
+    if (strategy === "max") {
       const steps = 400, dx = amountUsd / steps;
-      for (let s = 0; s < steps; s++) {
+      for (let k = 0; k < steps; k++) {
         let best = null, bestGain = -Infinity;
         for (const r of top) {
           const a = alloc.get(r.bin);
@@ -114,8 +144,9 @@
         alloc.set(best.bin, alloc.get(best.bin) + dx);
       }
     } else {
-      const total = top.reduce((s, r) => s + r.score, 0);
-      for (const r of top) alloc.set(r.bin, (amountUsd * r.score) / total);
+      const w = weight[strategy];
+      const total = top.reduce((sum, r) => sum + w(r), 0);
+      for (const r of top) alloc.set(r.bin, (amountUsd * w(r)) / total);
     }
 
     const bins = top
@@ -125,8 +156,8 @@
       })
       .filter((r) => r.usd > 0)
       .sort((a, b) => a.bin - b.bin);
-    const yearly = bins.reduce((s, r) => s + (r.usd * r.effAprBps) / 1e4, 0);
-    return { bins, aprBps: (yearly / amountUsd) * 1e4, weeklyUsd: yearly / 52 };
+    const yearly = bins.reduce((sum, r) => sum + (r.usd * r.effAprBps) / 1e4, 0);
+    return { bins, aprBps: (yearly / amountUsd) * 1e4, weeklyUsd: yearly / 52, strategy };
   }
 
   // Warnings about the pool itself, from /metadata.
@@ -162,7 +193,19 @@
       getJson(`${API}/evm/${chainId}/${address}/analytics/bins?period=${period}&fiat=USD`),
   };
 
-  const BinPicker = { API, DEFAULTS, binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings, api };
+  // Fetch the main window and the 24h check (once when they are the same) and score the pool.
+  async function loadScored(chainId, address, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    const [meta, main, day] = await Promise.all([
+      api.pool(chainId, address),
+      api.bins(chainId, address, o.window),
+      o.window === "24h" ? null : api.bins(chainId, address, "24h"),
+    ]);
+    const dayBins = (day || main).bins;
+    return { meta, curBin: main.curBinIdx, window: main.window, rows: scoreBins(main.bins, dayBins, main.curBinIdx, o) };
+  }
+
+  const BinPicker = { API, WINDOWS, HORIZONS, DEFAULTS, STRATEGIES, binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings, api, loadScored };
   if (typeof module !== "undefined" && module.exports) module.exports = BinPicker;
   else root.BinPicker = BinPicker;
 })(typeof window !== "undefined" ? window : globalThis);

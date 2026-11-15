@@ -22,7 +22,9 @@ header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margi
 header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
 header .sub { color: var(--muted); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-.controls { display: grid; grid-template-columns: 110px minmax(220px, 1fr) 130px 170px 110px 120px; gap: 10px; align-items: end; }
+.controls { display: grid; grid-template-columns: 110px minmax(220px, 1fr) 120px 170px 80px; gap: 10px; align-items: end; }
+.controls.second { grid-template-columns: 170px 150px minmax(0, 1fr); margin-top: 10px; }
+.hint { color: var(--muted); font-size: 12px; align-self: center; }
 label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
 select, input { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: inherit; }
 select:focus, input:focus { outline: 2px solid var(--accent-dim); border-color: transparent; }
@@ -90,7 +92,11 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
     <div><label for="amount">Amount, $</label><input id="amount" type="number" min="1" step="any" value="1000"></div>
     <div><label>I hold</label><div class="seg" id="have"></div></div>
     <div><label for="count">Bins</label><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>
-    <div><label>Split</label><div class="seg" id="mode"><button data-v="spread" class="on" title="Weights proportional to each bin's score">Spread</button><button data-v="max" title="Maximise APR after your own dilution">Max</button></div></div>
+  </div>
+  <div class="panel controls second">
+    <div><label for="strategy">Strategy</label><select id="strategy"></select></div>
+    <div><label>Markout window · horizon</label><div style="display:flex;gap:6px"><select id="window"></select><select id="horizon"></select></div></div>
+    <div class="hint" id="stratHint"></div>
   </div>
   <div class="status" id="status"></div>
 
@@ -101,7 +107,7 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
   </div>
 
   <footer>
-    Data: Metric public API (per-bin analytics for 7d and 24h). Score = 0.6 × 7d markout APR + 0.4 × 24h markout APR, minus a quarter of a negative trading-PnL APR; bins with under 100 swaps in 7d are skipped.
+    Data: Metric public API (per-bin analytics). Score = 0.6 × markout APR over the chosen window + 0.4 × the last 24h, minus a quarter of a negative trading-PnL APR; losing, stale and thin bins are skipped.
     Markout is a past measurement, not a forecast. Bins move with the pool: a bin above the active one holds token0, below holds token1, and they flip as the pool trades.
     Not affiliated with Metric. Providing liquidity can lose money; check the pool's tier first.
   </footer>
@@ -112,7 +118,8 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
 "use strict";
 const BP = window.BinPicker;
 const $ = (id) => document.getElementById(id);
-const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", mode: "spread", sort: { key: "bin", dir: 1 } };
+const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m", sort: { key: "bin", dir: 1 } };
+const winLabel = () => state.window === "all" ? "all time" : state.window;
 
 const fmtUsd = (v) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(2)}`;
 const fmtPct = (bps) => bps === null || bps === undefined ? "—" : `${(bps / 100).toFixed(1)}%`;
@@ -122,7 +129,7 @@ const sym = (side) => side === "token0" ? state.meta.token0Symbol : side === "to
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function save() {
-  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, mode: state.mode });
+  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon });
   history.replaceState(null, "", `?${p}`);
   try { localStorage.setItem("binpicker", p.toString()); } catch {}
 }
@@ -134,7 +141,17 @@ function restore() {
   if (p.get("amt")) $("amount").value = p.get("amt");
   if (p.get("have")) state.have = p.get("have");
   if (p.get("n")) $("count").value = p.get("n");
-  if (p.get("mode")) state.mode = p.get("mode");
+  if (BP.STRATEGIES[p.get("s")]) state.strategy = p.get("s");
+  if (BP.WINDOWS.includes(p.get("w"))) state.window = p.get("w");
+  if (BP.HORIZONS.includes(p.get("h"))) state.horizon = p.get("h");
+}
+
+function renderSettings() {
+  $("strategy").innerHTML = Object.entries(BP.STRATEGIES).map(([k, s]) => `<option value="${k}">${esc(s.label)}</option>`).join("");
+  $("window").innerHTML = BP.WINDOWS.map((w) => `<option value="${w}">${w === "all" ? "All" : w}</option>`).join("");
+  $("horizon").innerHTML = BP.HORIZONS.map((h) => `<option value="${h}">${h}</option>`).join("");
+  $("strategy").value = state.strategy; $("window").value = state.window; $("horizon").value = state.horizon;
+  $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint;
 }
 
 function setStatus(t) { $("status").textContent = t; }
@@ -162,12 +179,10 @@ async function loadPools() {
 async function loadPool() {
   if (!state.pool) return;
   setStatus("Loading bins…");
-  const [meta, b7, b24] = await Promise.all([
-    BP.api.pool(state.chain, state.pool), BP.api.bins(state.chain, state.pool, "7d"), BP.api.bins(state.chain, state.pool, "24h"),
-  ]);
-  state.meta = meta;
-  state.curBin = b7.curBinIdx;
-  state.rows = BP.scoreBins(b7.bins, b24.bins, b7.curBinIdx);
+  const r = await BP.loadScored(state.chain, state.pool, { window: state.window, horizon: state.horizon });
+  state.meta = r.meta;
+  state.curBin = r.curBin;
+  state.rows = r.rows;
   renderHave();
   setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin}`);
   render();
@@ -180,7 +195,7 @@ function renderHave() {
 }
 
 function currentPlan() {
-  return BP.plan(state.rows, { amountUsd: Number($("amount").value) || 0, have: state.have, count: Number($("count").value), mode: state.mode });
+  return BP.plan(state.rows, { amountUsd: Number($("amount").value) || 0, have: state.have, count: Number($("count").value), strategy: state.strategy });
 }
 
 function render() {
@@ -192,9 +207,9 @@ function render() {
 function renderPool() {
   const m = state.meta;
   const tier = m.classificationSummary?.tierQualification || "unclassified";
-  const mk = m.markoutByWindow?.["7d"]?.byHorizon?.["5m"]?.aprBps;
+  const mk = m.markoutByWindow?.[state.window]?.byHorizon?.[state.horizon]?.aprBps;
   const warns = BP.poolWarnings(m);
-  if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: "No swaps in the last 24h (market closed or quiet pool). Bins are ranked on the last 7 days only." });
+  if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: `No swaps in the last 24h (market closed or quiet pool). Bins are ranked on ${winLabel()} only.` });
   $("poolcard").innerHTML = `
     <div class="poolhead">
       <div><span class="pair">${esc(m.pair)}</span><span class="badge ${tier}">${tier}</span></div>
@@ -202,8 +217,8 @@ function renderPool() {
     </div>
     <div class="stats">
       <div><b>${fmtUsd(m.tvlFiat || 0)}</b>TVL</div>
-      <div><b>${fmtUsd(m.volumeByWindow?.["7d"] || 0)}</b>Volume 7d</div>
-      <div><b class="${cls(mk)}">${fmtPct(mk)}</b>Pool markout APR 7d</div>
+      <div><b>${fmtUsd(m.volumeByWindow?.[state.window] || 0)}</b>Volume ${winLabel()}</div>
+      <div><b class="${cls(mk)}">${fmtPct(mk)}</b>Pool markout ${state.horizon} · ${winLabel()}</div>
       <div><b>${esc(m.adminUsername || "—")}${m.verifiedAdmin ? " ✓" : ""}</b>Curator</div>
       <div><b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b>Curator + Metric cut</div>
     </div>
@@ -220,10 +235,10 @@ function renderPool() {
 function renderChart(plan) {
   const svg = $("chart"); if (!svg) return;
   // Show the traded range (plus a few bins of margin), the active bin and the picks; idle tails only add noise.
-  const traded = state.rows.filter((r) => r.swaps7 > 0).map((r) => r.bin);
+  const traded = state.rows.filter((r) => r.swaps > 0).map((r) => r.bin);
   const keep = [...traded, state.curBin, ...plan.bins.map((b) => b.bin)];
   const lo = Math.min(...keep) - 3, hi = Math.max(...keep) + 3;
-  const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps7 > 0)).sort((a, b) => a.bin - b.bin);
+  const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps > 0)).sort((a, b) => a.bin - b.bin);
   if (!rows.length) { svg.innerHTML = ""; return; }
   const W = svg.clientWidth || 700, H = 260, pad = 22, bw = (W - 8) / rows.length;
   const maxL = Math.max(...rows.map((r) => r.liquidity));
@@ -234,7 +249,7 @@ function renderChart(plan) {
     const h = Math.max(2, (r.liquidity / maxL) * (H - pad - 14));
     const x = 4 + k * bw, y = H - pad - h;
     let fill;
-    if (!r.eligible && r.score !== null && r.score <= 0 || (r.mk7 !== null && r.mk7 < 0)) fill = "var(--bad)";
+    if (!r.eligible && r.score !== null && r.score <= 0 || (r.mkMain !== null && r.mkMain < 0)) fill = "var(--bad)";
     else if (!r.eligible) fill = "#3a3d42";
     else fill = `rgba(56,232,216,${0.25 + 0.75 * Math.max(0, r.score) / maxS})`;
     const stroke = picked.has(r.bin) ? `stroke="var(--pick)" stroke-width="2"` : "";
@@ -253,10 +268,10 @@ function renderChart(plan) {
     tip.innerHTML = `<div style="margin-bottom:6px"><b>#${r.bin}</b> <span style="color:var(--muted)">${fmtDev(r.edges)}</span></div>
       <div class="r"><span>Holds</span><span>${esc(sym(r.side))}</span></div>
       <div class="r"><span>Liquidity</span><span>${fmtUsd(r.liquidity)}</span></div>
-      <div class="r"><span>Volume 7d</span><span>${fmtUsd(r.volume7)}</span></div>
-      <div class="r"><span>Swaps 7d / 24h</span><span>${r.swaps7} / ${r.swaps24}</span></div>
-      <div class="r"><span>Markout 7d / 24h</span><span><span class="${cls(r.mk7)}">${fmtPct(r.mk7)}</span> / <span class="${cls(r.mk24)}">${fmtPct(r.mk24)}</span></span></div>
-      <div class="r"><span>Trading PnL 7d</span><span class="${cls(r.pnl7)}">${fmtPct(r.pnl7)}</span></div>
+      <div class="r"><span>Volume ${winLabel()}</span><span>${fmtUsd(r.volume)}</span></div>
+      <div class="r"><span>Swaps ${winLabel()} / 24h</span><span>${r.swaps} / ${r.swaps24}</span></div>
+      <div class="r"><span>Markout ${state.horizon}: ${winLabel()} / 24h</span><span><span class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</span> / <span class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</span></span></div>
+      <div class="r"><span>Trading PnL ${winLabel()}</span><span class="${cls(r.pnl)}">${fmtPct(r.pnl)}</span></div>
       <div class="r"><span>Score</span><span>${r.eligible ? fmtPct(r.score) : esc(r.reasons[0])}</span></div>`;
     const box = svg.parentElement.getBoundingClientRect();
     tip.style.display = "block";
@@ -264,6 +279,15 @@ function renderChart(plan) {
     tip.style.top = `${Math.max(0, ev.clientY - box.top - 150)}px`;
   };
   svg.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+// Closest built-in Metric shape for each strategy; the rest need the bars dragged by hand.
+function shapeHint(plan) {
+  if (plan.bins.length === 1) return "Shape: <b>Single bin</b>.";
+  const preset = { score: "APR pro-rata", volume: "Volume pro-rata", flat: "Flat", spot: "Flat" }[plan.strategy];
+  return preset
+    ? `Shape: <b>${preset}</b> (Metric's preset weighs by its own 24h numbers, so shares can differ a little), or drag bars to the shares above.`
+    : "Shape: drag each bar to the share above. Metric has no preset for this split.";
 }
 
 function renderPlan(plan) {
@@ -283,14 +307,14 @@ function renderPlan(plan) {
     <div style="margin-top:12px">
       ${plan.bins.map((b) => `<div class="planrow">
         <span class="idx">#${b.bin}</span>
-        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${fmtDev(b.edges)} · ${esc(sym(b.side))}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mk24)}">${fmtPct(b.mk24)}</span></span></span>
+        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${fmtDev(b.edges)} · ${esc(sym(b.side))}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mkDay)}">${fmtPct(b.mkDay)}</span></span></span>
         <span class="usd">${fmtUsd(b.usd)}<small>${fmtPct(b.effAprBps)}</small></span>
       </div>`).join("")}
     </div>
     <ol class="steps">
       <li>Open the pool in Metric and press <b>Clear</b>.</li>
       <li>Click bins <b>${plan.bins.map((b) => "#" + b.bin).join(", ")}</b> (hover a bar to see its number).</li>
-      <li>Shape: <b>${plan.bins.length > 1 ? "APR pro-rata" : "Single bin"}</b>, or drag bars to the shares above.</li>
+      <li>${shapeHint(plan)}</li>
       <li>Check the other token reads <b>0</b>: if not, the pool moved and a bin flipped side. Refresh here.</li>
     </ol>
     ${near ? `<div class="warn warn" style="margin-top:10px">${near} bin(s) sit within 2 of the active bin #${state.curBin}. They earn the most but flip side fastest.</div>` : ""}
@@ -304,23 +328,23 @@ function renderPlan(plan) {
   };
 }
 
-const COLS = [
-  ["bin", "Bin"], ["side", "Holds"], ["swaps7", "Swaps 7d"], ["volume7", "Volume 7d"], ["liquidity", "Liquidity"],
-  ["mk7", "Markout 7d"], ["mk24", "Markout 24h"], ["pnl7", "PnL 7d"], ["score", "Score"],
+const COLS = () => [
+  ["bin", "Bin"], ["side", "Holds"], ["swaps", `Swaps ${winLabel()}`], ["volume", `Volume ${winLabel()}`], ["liquidity", "Liquidity"],
+  ["mkMain", `Markout ${state.horizon} · ${winLabel()}`], ["mkDay", `Markout ${state.horizon} · 24h`], ["pnl", `PnL ${winLabel()}`], ["score", "Score"],
 ];
 function renderTable(plan) {
   const picked = new Set(plan.bins.map((b) => b.bin));
-  const rows = state.rows.filter((r) => r.liquidity > 1 || r.swaps7 > 0);
+  const rows = state.rows.filter((r) => r.liquidity > 1 || r.swaps > 0);
   const { key, dir } = state.sort;
   rows.sort((a, b) => ((a[key] ?? -Infinity) > (b[key] ?? -Infinity) ? 1 : (a[key] ?? -Infinity) < (b[key] ?? -Infinity) ? -1 : 0) * dir);
   const sideCls = { token0: "side0", token1: "side1", both: "sideb" };
-  $("table").innerHTML = `<table><thead><tr>${COLS.map(([k, t]) => `<th data-k="${k}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
+  $("table").innerHTML = `<table><thead><tr>${COLS().map(([k, t]) => `<th data-k="${k}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
     ${rows.map((r) => `<tr class="${picked.has(r.bin) ? "pick" : r.bin === state.curBin ? "cur" : !r.eligible ? "dim" : ""}" title="${esc(r.reasons.join("; "))}">
       <td>#${r.bin}${r.bin === state.curBin ? " · active" : ""}</td>
       <td class="${sideCls[r.side]}">${esc(sym(r.side))}</td>
-      <td>${r.swaps7}</td><td>${fmtUsd(r.volume7)}</td><td>${fmtUsd(r.liquidity)}</td>
-      <td class="${cls(r.mk7)}">${fmtPct(r.mk7)}</td><td class="${cls(r.mk24)}">${fmtPct(r.mk24)}</td>
-      <td class="${cls(r.pnl7)}">${fmtPct(r.pnl7)}</td><td>${r.eligible ? fmtPct(r.score) : "—"}</td></tr>`).join("")}
+      <td>${r.swaps}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
+      <td class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</td><td class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</td>
+      <td class="${cls(r.pnl)}">${fmtPct(r.pnl)}</td><td>${r.eligible ? fmtPct(r.score) : "—"}</td></tr>`).join("")}
   </tbody></table>`;
   $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
     const k = th.dataset.k;
@@ -335,12 +359,14 @@ $("chain").onchange = async () => { state.chain = Number($("chain").value); stat
 $("pool").onchange = () => { state.pool = $("pool").value; loadPool().catch(fail); };
 $("amount").oninput = render; $("count").onchange = render;
 $("have").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.have = v; renderHave(); render(); };
-$("mode").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.mode = v; [...$("mode").children].forEach((b) => b.classList.toggle("on", b.dataset.v === v)); render(); };
+$("strategy").onchange = () => { state.strategy = $("strategy").value; $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint; render(); };
+$("window").onchange = () => { state.window = $("window").value; loadPool().catch(fail); };
+$("horizon").onchange = () => { state.horizon = $("horizon").value; loadPool().catch(fail); };
 window.addEventListener("resize", () => state.meta && renderChart(currentPlan()));
 
 (async () => {
   restore();
-  [...$("mode").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.mode));
+  renderSettings();
   try { await loadChains(); await loadPools(); await loadPool(); } catch (e) { fail(e); }
 })();
 </script>
