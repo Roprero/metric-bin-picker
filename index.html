@@ -313,8 +313,11 @@ footer { margin-top: 30px; color: var(--dim); font-size: 14px; max-width: 90ch; 
       changes your token mix, so when the asset keeps moving after the horizon, trading PnL can be negative while markout is positive.</p>
     <p><b>Pool APR</b> in the Metric list is the pool’s markout APR over a window. None of these is a forecast.</p>
     <p id="explainExample"></p>
-    <p>Bin Picker scores bins on markout over the window you pick plus the last 24 hours, minus a quarter of a negative trading PnL,
-      so bins that earn the spread but keep ending up on the wrong side of the move rank lower.</p>
+    <p>Bin Picker turns each bin’s markout back into dollars a year (the window you pick, blended with the last 24 hours, minus
+      a quarter of a negative trading PnL) and divides them by the liquidity in the bin <b>today</b>, plus your deposit. The APR
+      from the API is measured on the bin’s average liquidity over the window; liquidity tends to pile into bins that earned well,
+      so today’s figure is what a new deposit actually shares the flow with. Bins that earn the spread but keep ending up on the
+      wrong side of the move rank lower.</p>
   </details>
 
   <footer>
@@ -574,13 +577,14 @@ function renderDetail(plan) {
     <dl>
       <div><dt>Price range</dt><dd>≈ ${fmtRange(r.priceRange)}</dd></div>
       <div><dt>Deviation from reference</dt><dd>${fmtDev(r.edges)}</dd></div>
-      <div><dt>Liquidity</dt><dd>${fmtUsd(r.liquidity)}</dd></div>
+      <div><dt>Liquidity now</dt><dd>${fmtUsd(r.liquidity)}</dd></div>
+      <div><dt>Average liquidity, ${winLabel()}</dt><dd>${fmtUsd(r.liquidityAvg)}</dd></div>
       <div><dt>Volume, ${winLabel()}</dt><dd>${fmtUsd(r.volume)}</dd></div>
       <div><dt>Swaps, ${winLabel()} and 24h</dt><dd>${r.swaps} and ${r.swaps24}</dd></div>
       <div><dt>Markout ${state.horizon}, ${winLabel()}</dt><dd class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</dd></div>
       <div><dt>Markout ${state.horizon}, 24h</dt><dd class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</dd></div>
       <div><dt>Trading PnL, ${winLabel()}</dt><dd class="${cls(r.pnl)}">${fmtPct(r.pnl)}</dd></div>
-      <div><dt>Score</dt><dd>${r.eligible ? fmtPct(r.score) : `not picked: ${esc(r.reasons.join("; "))}`}</dd></div>
+      <div><dt>Expected APR at today’s liquidity</dt><dd>${r.eligible ? fmtPct(r.score) : `not picked: ${esc(r.reasons.join("; "))}`}</dd></div>
     </dl>`;
 }
 
@@ -702,8 +706,8 @@ function drawCard(cv, plan) {
 
 /* ---------- table and explainer ---------- */
 const COLS = () => [
-  ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Takes"], ["swaps", `Swaps, ${winLabel()}`], ["volume", `Volume, ${winLabel()}`], ["liquidity", "Liquidity"],
-  ["mkMain", `Markout ${state.horizon}, ${winLabel()}`], ["mkDay", `Markout ${state.horizon}, 24h`], ["pnl", `Trading PnL, ${winLabel()}`], ["score", "Score"],
+  ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Takes"], ["swaps", `Swaps, ${winLabel()}`], ["volume", `Volume, ${winLabel()}`], ["liquidity", "Liquidity now"],
+  ["mkMain", `Markout ${state.horizon}, ${winLabel()}`], ["mkDay", `Markout ${state.horizon}, 24h`], ["pnl", `Trading PnL, ${winLabel()}`], ["score", "Expected APR"],
 ];
 function renderTable(plan) {
   const mine = new Set(plan.bins.map((b) => b.bin));

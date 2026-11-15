@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+- Fix: expected APR was overstated. The API's markout APR is measured on a bin's average liquidity over the window, but a new
+  deposit shares the flow with the liquidity in the bin today, which is often much higher in bins that earned well. Bins are
+  now scored and diluted on today's liquidity (`reserveFiat`): on a snapshot of four large pools the expected APR fell by up
+  to 40% where liquidity had grown (BNB Chain USDC/USDT, USDT side: 86% → 53%), and one plan moved by a bin.
+- Bins that are empty right now are no longer offered; the thin-bin check uses today's liquidity.
+- Volume pro-rata uses the volume the markout was measured on (token0 volume read a few percent low).
+- New independent check: `npm run test:sql` recomputes edges, eligibility, scores and every plan in SQLite from a raw API
+  snapshot and compares with the app to the cent; it also checks the premise that bin APR = markout dollars ÷ average
+  liquidity. Runs daily in CI.
+
 ## 0.6.0
 
 - Four steps instead of one crowded screen: pool, your side and amount, how to split, your plan. Every step shows its

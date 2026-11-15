@@ -1,11 +1,12 @@
 // node test/core.test.js — checks core.js on synthetic bins and, with --live, on real pools for every window × horizon × strategy.
 const assert = require("assert");
 const BP = require("../core.js");
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)), msg || `${a} != ${b}`);
 
-const mkBin = (bin, { swaps = 500, liq = 100000, vol = 1e6, mk = 500, mk1m = mk, mk30m = mk, pnl = 0, len = 5 } = {}) => ({
+const mkBin = (bin, { swaps = 500, liq = 100000, vol = 1e6, mk = 500, mk1m = mk, mk30m = mk, pnl = 0, len = 5, res = liq } = {}) => ({
   bin: String(bin), swapCount: String(swaps), lengthE6: len, pnlAprBps: pnl,
-  token0: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: 0 },
-  token1: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: 0 },
+  token0: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: res / 2 },
+  token1: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: res / 2 },
   markoutByHorizon: { "1m": { aprBps: mk1m }, "5m": { aprBps: mk }, "30m": { aprBps: mk30m } },
 });
 const day = (bin, mk, swaps = 10) => mkBin(bin, { swaps, mk });
@@ -30,21 +31,49 @@ t("sides: above current → token0, below → token1, current → both", () => {
 
 t("score blends the main window with 24h and penalises negative PnL", () => {
   const rows = BP.scoreBins([mkBin(2, { mk: 1000, pnl: -400 })], [day(2, 500)], 0);
-  assert.strictEqual(rows[0].score, 0.6 * 1000 + 0.4 * 500 + 0.25 * -400);
+  near(rows[0].score, 0.6 * 1000 + 0.4 * 500 + 0.25 * -400);
+});
+
+t("forward APR: the same flow over twice today's liquidity is half the APR", () => {
+  // the API's markout APR is over the window's average liquidity; a deposit now shares the flow with what is there now
+  const rows = BP.scoreBins([mkBin(2, { mk: 1000, liq: 100000, res: 200000 })], [day(2, 1000)], 0, { window: "24h" });
+  near(rows[0].score, 500);
+  assert.strictEqual(rows[0].liquidity, 200000);
+  assert.strictEqual(rows[0].liquidityAvg, 100000);
+});
+
+t("forward APR: dilution and bin share use today's liquidity", () => {
+  const rows = BP.scoreBins([mkBin(3, { mk: 1000, liq: 100000, res: 300000 })], [day(3, 1000)], 0, { window: "24h" });
+  const p = BP.plan(rows, { amountUsd: 100000, have: "token0", count: 1, strategy: "score" });
+  // $1000/yr per $10k of average liquidity → $10k a year of flow, shared by 300k + 100k
+  near(p.bins[0].effAprBps, 10000 / 400000 * 1e4);
+  near(p.bins[0].binShare, 0.25);
+});
+
+t("a bin that is empty right now is not offered, however well it did", () => {
+  const rows = BP.scoreBins([mkBin(2, { mk: 3000, res: 0 })], [day(2, 3000)], 0, { window: "24h" });
+  assert.ok(!rows[0].eligible);
+  assert.ok(rows[0].reasons.includes("empty right now"));
+});
+
+t("payloads without reserves fall back to the window average", () => {
+  const b = mkBin(2, { mk: 800 }); delete b.token0.reserveFiat; delete b.token1.reserveFiat;
+  const rows = BP.scoreBins([b], [day(2, 800)], 0, { window: "24h" });
+  near(rows[0].score, 800);
 });
 
 t("horizon picks the matching markout", () => {
   const b = [mkBin(2, { mk: 500, mk1m: 900, mk30m: 100 })];
   const s = (horizon) => BP.scoreBins(b, [mkBin(2, { swaps: 10, mk: 0, mk1m: 0, mk30m: 0 })], 0, { horizon })[0].score;
-  assert.strictEqual(s("1m"), 0.6 * 900);
-  assert.strictEqual(s("5m"), 0.6 * 500);
-  assert.strictEqual(s("30m"), 0.6 * 100);
+  near(s("1m"), 0.6 * 900);
+  near(s("5m"), 0.6 * 500);
+  near(s("30m"), 0.6 * 100);
 });
 
 t("24h window scores on 24h alone and uses its own swap threshold", () => {
   const b = [mkBin(2, { mk: 700, swaps: 20 })];
   const r = BP.scoreBins(b, b, 0, { window: "24h" })[0];
-  assert.ok(r.eligible); assert.strictEqual(r.score, 700);
+  assert.ok(r.eligible); near(r.score, 700);
   assert.ok(!BP.scoreBins(b, days([2]), 0, { window: "7d" })[0].eligible, "20 swaps is too few for 7d");
 });
 
@@ -60,7 +89,7 @@ t("thin, stale and losing bins are not eligible", () => {
 t("a pool idle for 24h is ranked on the main window instead of being emptied", () => {
   const rows = BP.scoreBins([mkBin(2, { mk: 800 }), mkBin(3, { mk: 600 })], [day(2, 0, 0), day(3, 0, 0)], 0);
   assert.ok(rows.every((r) => r.eligible && r.poolIdle24h));
-  assert.strictEqual(rows[0].score, 800);
+  near(rows[0].score, 800);
 });
 
 // a symmetric book around bin 0, score falling with distance
@@ -103,7 +132,9 @@ t("dilution: a big deposit into a thin bin earns less than its score", () => {
 });
 
 t("max mode spreads a large deposit away from a thin top bin", () => {
-  const rows = BP.scoreBins([mkBin(2, { mk: 1000, liq: 30000 }), mkBin(3, { mk: 800, liq: 1e6 })], [day(2, 1000), day(3, 800)], 0);
+  // the 24h bins hold the same liquidity as the 7d ones, otherwise the 24h markout dollars would be scaled differently
+  const rows = BP.scoreBins([mkBin(2, { mk: 1000, liq: 30000 }), mkBin(3, { mk: 800, liq: 1e6 })],
+    [mkBin(2, { swaps: 10, mk: 1000, liq: 30000 }), mkBin(3, { swaps: 10, mk: 800, liq: 1e6 })], 0);
   const p = BP.plan(rows, { amountUsd: 50000, have: "token0", count: 2, strategy: "max" });
   assert.ok(p.bins.find((b) => b.bin === 2).usd < 25000);
 });

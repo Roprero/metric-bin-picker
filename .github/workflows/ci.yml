@@ -30,3 +30,4 @@ jobs:
       - run: npm run test:ui
         env:
           CHROME: /usr/bin/google-chrome
+      - run: npm run test:sql

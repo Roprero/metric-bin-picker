@@ -55,14 +55,17 @@ Losing, stale and thin bins are never picked, whatever the strategy.
 
 For the window you pick (24h, 7d, 30d, All) and horizon (1m, 5m, 30m):
 
-- **score** = 0.6 × markout APR over the window + 0.4 × markout APR over the last 24h, minus ¼ of a negative trading-PnL APR.
-  With the 24h window the score is the 24h markout alone.
+- **flow** = markout dollars a year: 0.6 × (window markout APR × the bin's average liquidity over the window) + 0.4 × (24h
+  markout APR × its average liquidity over 24h), minus ¼ of a negative trading-PnL APR × the window's average liquidity.
+  With the 24h window the flow is the 24h part alone.
+- **score** (expected APR) = flow ÷ the liquidity in the bin **now**. The API's markout APR is measured on average liquidity,
+  and liquidity piles into bins that earned well, so today's liquidity is what a new deposit actually shares the flow with.
 - A bin is skipped when it **lost money over the window**, had **too few swaps** (15 for 24h, 100 for 7d, 300 for 30d and All),
   **no swaps in the last 24h** (unless the whole pool was idle, e.g. a closed stock market), or **too little liquidity** for its
-  APR to mean anything (under $1,000 or 2% of the largest bin).
+  APR to mean anything right now (under $1,000 or 2% of the largest bin today), or is empty right now.
 - Only bins you can fund are offered: above the active bin they take token0, below it token1. The active bin and the bin next to
   it are skipped, because the pool moves while you click and they flip sides.
-- Your deposit dilutes a bin: `x` dollars added to a bin holding `L` earn `score × L / (L + x)`.
+- Your deposit dilutes a bin: `x` dollars added to a bin holding `L` today earn `flow / (L + x)`.
 - Prices are approximate: the reference is estimated from the pool's executable bid and ask, accurate to about half a bin.
 
 Markout is a past measurement, not a forecast. Read the pool's tier and warnings before depositing.

@@ -1,11 +1,12 @@
 // node test/scenarios.test.js — user scenarios and edge cases for core.js, no network.
 const assert = require("assert");
 const BP = require("../core.js");
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)), msg || `${a} != ${b}`);
 
-const mkBin = (bin, { swaps = 500, liq = 100000, vol = 1e6, mk = 500, mk1m = mk, mk30m = mk, pnl = 0, len = 5 } = {}) => ({
+const mkBin = (bin, { swaps = 500, liq = 100000, vol = 1e6, mk = 500, mk1m = mk, mk30m = mk, pnl = 0, len = 5, res = liq } = {}) => ({
   bin: String(bin), swapCount: String(swaps), lengthE6: len, pnlAprBps: pnl,
-  token0: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: 0 },
-  token1: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: 0 },
+  token0: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: res / 2 },
+  token1: { avgLiquidityFiat: liq / 2, volumeFiat: vol, reserveFiat: res / 2 },
   markoutByHorizon: { "1m": { aprBps: mk1m }, "5m": { aprBps: mk }, "30m": { aprBps: mk30m } },
 });
 const day = (bin, mk = 500, swaps = 10) => mkBin(bin, { swaps, mk });
@@ -78,11 +79,11 @@ t("10 non-uniform bin widths stack correctly", () => {
 });
 t("11 no 24h data at all is treated as an idle pool, ranked on the main window", () => {
   const rows = BP.scoreBins([mkBin(3, { mk: 700 })], [], 0);
-  assert.ok(rows[0].eligible && rows[0].poolIdle24h); assert.strictEqual(rows[0].score, 700);
+  assert.ok(rows[0].eligible && rows[0].poolIdle24h); near(rows[0].score, 700);
 });
 t("12 null trading PnL does not break the score", () => {
   const rows = score([mkBin(3, { mk: 600, pnl: null })], 0, {}, [day(3, 600)]);
-  assert.strictEqual(rows[0].score, 600);
+  near(rows[0].score, 600);
 });
 t("13 a bin silent for 24h in an active pool is stale even if its week was great", () => {
   const rows = BP.scoreBins([mkBin(3, { mk: 5000 }), mkBin(4)], [day(3, 0, 0), day(4)], 0);

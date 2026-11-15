@@ -49,16 +49,29 @@
   }
 
   const liqFiat = (b) => (b.token0.avgLiquidityFiat || 0) + (b.token1.avgLiquidityFiat || 0);
+  // What the bin holds right now. Older payloads without reserves fall back to the window average.
+  const reserveFiat = (b) =>
+    b.token0.reserveFiat === undefined && b.token1.reserveFiat === undefined ? null : (b.token0.reserveFiat || 0) + (b.token1.reserveFiat || 0);
   const mkApr = (b, h) => (b && b.markoutByHorizon && b.markoutByHorizon[h] ? b.markoutByHorizon[h].aprBps : null);
+  // Volume the markout was measured on; token0 and token1 volumes differ by a few percent, the priced volume is the reference.
+  const volFiat = (b, h) => {
+    const m = b.markoutByHorizon && b.markoutByHorizon[h] && b.markoutByHorizon[h].volumeFiat;
+    return m > 0 ? m : Math.max(b.token0.volumeFiat || 0, b.token1.volumeFiat || 0);
+  };
 
   // One row per bin, scored on the main window with the last 24h as a recency check. Score is in bps of APR.
   //   binsMain: /analytics/bins for opts.window;  bins24h: the same for 24h (pass binsMain again when the window is 24h)
+  //
+  // Markout APR from the API is markout dollars over the bin's AVERAGE liquidity in the window. Liquidity piles into bins that
+  // earned well, so dividing the same flow by today's liquidity is what a new deposit would actually share. The score is
+  // therefore forward-looking: (blended markout dollars a year) / (liquidity in the bin now).
   function scoreBins(binsMain, bins24h, curBin, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const single = o.window === "24h";
     const day = new Map((bins24h || []).map((b) => [Number(b.bin), b]));
     const edges = binEdges(binsMain);
-    const minLiq = Math.max(o.minLiquidityUsd, o.minLiquidityShare * Math.max(0, ...binsMain.map(liqFiat)));
+    const nowOf = (b) => { const r = reserveFiat(b); return r === null ? liqFiat(b) : r; };
+    const minLiq = Math.max(o.minLiquidityUsd, o.minLiquidityShare * Math.max(0, ...binsMain.map(nowOf)));
     const minSwaps = typeof o.minSwaps === "number" ? o.minSwaps : o.minSwaps[o.window];
     // A pool with no swaps at all in 24h (a closed stock market, a quiet weekend) is ranked on the main window alone.
     const poolIdle24h = !(bins24h || []).some((b) => Number(b.swapCount) > 0);
@@ -71,18 +84,25 @@
       const mkDay = swaps24 > 0 ? mkApr(b24, o.horizon) : null; // a bin with no swaps has no 24h markout, not a zero one
       const pnl = b.pnlAprBps;
       const swaps = Number(b.swapCount);
-      const liq = liqFiat(b);
+      const liqAvg = liqFiat(b);
+      const liq24 = b24 ? liqFiat(b24) : 0;
+      const liq = nowOf(b);
       const reasons = [];
-      let score = null;
+      let score = null, flowUsd = null;
       if (swaps < minSwaps) reasons.push(`fewer than ${minSwaps} swaps in ${o.window}`);
       if (needRecent && swaps24 === 0) reasons.push("no swaps in the last 24h");
       if (mkMain === null) reasons.push(`no ${o.window} markout`);
       else if (mkMain <= 0) reasons.push(`losing over ${o.window}`); // one good day does not rescue a losing week
-      if (!(liq > 0)) reasons.push("no liquidity");
+      if (!(liqAvg > 0)) reasons.push(`no liquidity over ${o.window}`);
+      if (!(liq > 0)) reasons.push("empty right now");
       else if (liq < minLiq) reasons.push(`too thin to trust its APR (< $${Math.round(minLiq)})`);
       if (!reasons.length) {
-        score = single || mkDay === null ? mkMain : o.wMain * mkMain + o.wDay * mkDay;
-        if (pnl !== null && pnl !== undefined && pnl < 0) score += o.pnlPenalty * pnl;
+        // markout dollars a year: the main window, blended with the last 24h for recency
+        const flowMain = (mkMain / 1e4) * liqAvg;
+        const flowDay = mkDay !== null && liq24 > 0 ? (mkDay / 1e4) * liq24 : null;
+        flowUsd = single || flowDay === null ? flowMain : o.wMain * flowMain + o.wDay * flowDay;
+        if (pnl !== null && pnl !== undefined && pnl < 0) flowUsd += o.pnlPenalty * (pnl / 1e4) * liqAvg;
+        score = (flowUsd / liq) * 1e4;
         if (score <= 0) reasons.push("score ≤ 0");
       }
       return {
@@ -91,11 +111,13 @@
         side: sideOf(i, curBin),
         distance: i - curBin,
         swaps, swaps24,
-        volume: b.token0.volumeFiat || 0,
-        liquidity: liq,
+        volume: volFiat(b, o.horizon),
+        liquidity: liq,        // in the bin now: what a new deposit shares the flow with
+        liquidityAvg: liqAvg,  // average over the window: what the API's APR is measured on
         mkMain, mkDay, pnl,
         cooling: mkDay !== null && mkDay < 0,
         poolIdle24h,
+        flowUsd,
         score,
         eligible: !reasons.length,
         reasons,
