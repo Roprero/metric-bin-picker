@@ -77,6 +77,7 @@
       if (swaps < minSwaps) reasons.push(`fewer than ${minSwaps} swaps in ${o.window}`);
       if (needRecent && swaps24 === 0) reasons.push("no swaps in the last 24h");
       if (mkMain === null) reasons.push(`no ${o.window} markout`);
+      else if (mkMain <= 0) reasons.push(`losing over ${o.window}`); // one good day does not rescue a losing week
       if (!(liq > 0)) reasons.push("no liquidity");
       else if (liq < minLiq) reasons.push(`too thin to trust its APR (< $${Math.round(minLiq)})`);
       if (!reasons.length) {
@@ -105,6 +106,28 @@
   // APR you would earn on `x` dollars added to a bin that holds `liq` dollars: the bin's flow is shared with you.
   const dilutedApr = (score, liq, x) => (x > 0 ? (score * liq) / (liq + x) : score);
 
+  // Reference price estimate (token1 per token0) from the pool's executable mid and the active bin.
+  // bid/ask already include the pool's deviation, so divide it back out at the middle of the active bin.
+  // Accurate to about half a bin width, which is what a "≈ price range" needs.
+  function estimateReference({ bid, ask, curEdges }) {
+    if (!(bid > 0) || !(ask > 0) || !curEdges) return null;
+    const mid = (bid + ask) / 2;
+    const dev = (curEdges[0] + curEdges[1]) / 2 / 100;
+    return mid / (1 + dev);
+  }
+
+  // Approximate price range a bin covers, in token1 per token0, before the spread.
+  const binPriceRange = (edges, reference) =>
+    reference && edges ? [reference * (1 + edges[0] / 100), reference * (1 + edges[1] / 100)] : null;
+
+  // Pool list filters people asked for in #feedback: minimum TVL, minimum 24h volume, tiers.
+  function filterPools(pools, { minTvl = 0, minVolume24h = 0, tiers = null } = {}) {
+    return pools.filter((p) =>
+      (p.tvlFiat || 0) >= minTvl &&
+      ((p.volumeByWindow && p.volumeByWindow["24h"]) || 0) >= minVolume24h &&
+      (!tiers || tiers.includes((p.classificationSummary && p.classificationSummary.tierQualification) || "unclassified")));
+  }
+
   // Pick bins on the side the user can fund and split `amountUsd` across them with a strategy from STRATEGIES.
   //   have: "token0" | "token1" | "both"
   function plan(rows, { amountUsd, have, count = 3, strategy = "score", skipNearCurrent = DEFAULTS.skipNearCurrent }) {
@@ -115,9 +138,10 @@
       r.eligible &&
       (have === "both" || r.side === have) &&
       Math.abs(r.distance) > skipNearCurrent);
+    // ties break toward the price, then by bin index, so the same data always gives the same plan
     const top = s.pick === "nearest"
-      ? [...fundable].sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance) || b.score - a.score).slice(0, n)
-      : [...fundable].sort((a, b) => b.score - a.score).slice(0, n);
+      ? [...fundable].sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance) || b.score - a.score || a.bin - b.bin).slice(0, n)
+      : [...fundable].sort((a, b) => b.score - a.score || Math.abs(a.distance) - Math.abs(b.distance) || a.bin - b.bin).slice(0, n);
     if (!top.length || !(amountUsd > 0)) return { bins: [], aprBps: null, weeklyUsd: 0, strategy };
 
     // rank 1 = closest to the price; with "both", bins on each side are ranked by their own distance
@@ -152,7 +176,8 @@
     const bins = top
       .map((r) => {
         const usd = alloc.get(r.bin);
-        return { ...r, usd, share: usd / amountUsd, effAprBps: dilutedApr(r.score, r.liquidity, usd) };
+        // binShare: the part of the bin you would own after depositing
+        return { ...r, usd, share: usd / amountUsd, binShare: usd / (r.liquidity + usd), effAprBps: dilutedApr(r.score, r.liquidity, usd) };
       })
       .filter((r) => r.usd > 0)
       .sort((a, b) => a.bin - b.bin);
@@ -191,21 +216,38 @@
       getJson(`${API}/evm/${chainId}/metadata?include24h=true&addresses=${address}`).then((d) => d.data[0] || null),
     bins: (chainId, address, period) =>
       getJson(`${API}/evm/${chainId}/${address}/analytics/bins?period=${period}&fiat=USD`),
+    bidAsk: (chainId, address) =>
+      getJson(`${API}/evm/${chainId}/${address}/bid_ask?depth=false`).then((d) => ({
+        bid: Number(BigInt(d.bidAdj)) / 2 ** 64,
+        ask: Number(BigInt(d.askAdj)) / 2 ** 64,
+        status: d.priceProviderStatus,
+      })),
   };
+  // The API marks a side the pool refuses with bid 0 or ask 2^128 − 1, i.e. about 2^64 once divided by 2^64.
+  const quoteUsable = (q) => !!q && q.bid > 0 && q.ask > 0 && q.ask < 2 ** 63;
 
   // Fetch the main window and the 24h check (once when they are the same) and score the pool.
   async function loadScored(chainId, address, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
-    const [meta, main, day] = await Promise.all([
+    const [meta, main, day, quote] = await Promise.all([
       api.pool(chainId, address),
       api.bins(chainId, address, o.window),
       o.window === "24h" ? null : api.bins(chainId, address, "24h"),
+      api.bidAsk(chainId, address).catch(() => null), // prices are a nice-to-have; the plan works without them
     ]);
     const dayBins = (day || main).bins;
-    return { meta, curBin: main.curBinIdx, window: main.window, rows: scoreBins(main.bins, dayBins, main.curBinIdx, o) };
+    const rows = scoreBins(main.bins, dayBins, main.curBinIdx, o);
+    const cur = rows.find((r) => r.bin === main.curBinIdx);
+    const reference = quoteUsable(quote) ? estimateReference({ bid: quote.bid, ask: quote.ask, curEdges: cur && cur.edges }) : null;
+    for (const r of rows) r.priceRange = binPriceRange(r.edges, reference);
+    return { meta, curBin: main.curBinIdx, window: main.window, reference, rows };
   }
 
-  const BinPicker = { API, WINDOWS, HORIZONS, DEFAULTS, STRATEGIES, binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings, api, loadScored };
+  const BinPicker = {
+    API, WINDOWS, HORIZONS, DEFAULTS, STRATEGIES,
+    binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings,
+    estimateReference, binPriceRange, filterPools, quoteUsable, api, loadScored,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = BinPicker;
   else root.BinPicker = BinPicker;
 })(typeof window !== "undefined" ? window : globalThis);

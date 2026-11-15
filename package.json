@@ -1,0 +1,15 @@
+{
+  "name": "metric-bin-picker",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Pick the Metric bins that actually earn: per-bin markout ranked for the token you hold.",
+  "license": "MIT",
+  "scripts": {
+    "start": "python3 -m http.server 8765",
+    "test": "node test/core.test.js && node test/scenarios.test.js",
+    "test:live": "node test/core.test.js --live",
+    "test:ui": "node test/ui.test.js",
+    "test:all": "npm test && npm run test:live && npm run test:ui"
+  },
+  "engines": { "node": ">=18" }
+}

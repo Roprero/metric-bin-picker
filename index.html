@@ -23,7 +23,9 @@ header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
 header .sub { color: var(--muted); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
 .controls { display: grid; grid-template-columns: 110px minmax(220px, 1fr) 120px 170px 80px; gap: 10px; align-items: end; }
-.controls.second { grid-template-columns: 170px 150px minmax(0, 1fr); margin-top: 10px; }
+.controls.second { grid-template-columns: 170px 150px 340px minmax(0, 1fr); margin-top: 10px; }
+.explain { margin-top: 16px; } .explain summary { cursor: pointer; font-weight: 600; } .explain p { color: var(--muted); margin: 8px 0; }
+.explain b { color: var(--text); }
 .hint { color: var(--muted); font-size: 12px; align-self: center; }
 label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
 select, input { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: inherit; }
@@ -96,6 +98,11 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
   <div class="panel controls second">
     <div><label for="strategy">Strategy</label><select id="strategy"></select></div>
     <div><label>Markout window · horizon</label><div style="display:flex;gap:6px"><select id="window"></select><select id="horizon"></select></div></div>
+    <div><label>Pool filter: TVL · 24h volume · tier</label><div style="display:flex;gap:6px">
+      <select id="fTvl" title="Minimum TVL"><option value="0">Any TVL</option><option value="10000">TVL ≥ $10K</option><option value="100000">≥ $100K</option><option value="1000000">≥ $1M</option></select>
+      <select id="fVol" title="Minimum 24h volume"><option value="0">Any volume</option><option value="1">24h vol &gt; 0</option><option value="100000">≥ $100K</option><option value="1000000">≥ $1M</option></select>
+      <select id="fTier" title="Pool tier"><option value="">All tiers</option><option value="green,yellow">Green + yellow</option><option value="green">Green only</option></select>
+    </div></div>
     <div class="hint" id="stratHint"></div>
   </div>
   <div class="status" id="status"></div>
@@ -105,6 +112,19 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
     <div class="panel plan" id="plan"><div class="empty">Your plan appears here.</div></div>
     <div class="panel tablebox"><h2>All bins</h2><div id="table"></div></div>
   </div>
+
+  <details class="panel explain" id="explain">
+    <summary>How to read these numbers: APR, markout, trading PnL</summary>
+    <p><b>Markout APR</b> is what the bins kept from each swap, checked against the pool's reference price a few minutes later
+      (the horizon: 1, 5 or 30 minutes). It counts the spread and whether the trade was worth taking. Positive means traders paid you;
+      negative means they knew the price was about to move and picked you off.</p>
+    <p><b>Trading PnL</b> compares what you hold now with simply holding the tokens you deposited, at today's prices. Every trade
+      changes your token mix, so when the asset keeps moving after the horizon, trading PnL can be negative while markout is positive.</p>
+    <p><b>Pool APR</b> in the Metric list is the pool's markout APR over a window. None of these is a forecast.</p>
+    <p id="explainExample"></p>
+    <p>This tool scores bins on markout over the window you pick plus the last 24 hours, and subtracts a quarter of a negative trading PnL,
+      so bins that earn the spread but keep ending up on the wrong side of the move rank lower.</p>
+  </details>
 
   <footer>
     Data: Metric public API (per-bin analytics). Score = 0.6 × markout APR over the chosen window + 0.4 × the last 24h, minus a quarter of a negative trading-PnL APR; losing, stale and thin bins are skipped.
@@ -126,10 +146,13 @@ const fmtPct = (bps) => bps === null || bps === undefined ? "—" : `${(bps / 10
 const cls = (bps) => bps === null || bps === undefined ? "" : bps >= 0 ? "pos" : "neg";
 const fmtDev = (e) => e ? `${e[0] >= 0 ? "+" : ""}${e[0].toFixed(5)}…${e[1] >= 0 ? "+" : ""}${e[1].toFixed(5)}%` : "";
 const sym = (side) => side === "token0" ? state.meta.token0Symbol : side === "token1" ? state.meta.token1Symbol : "both";
+const fmtPrice = (v) => v === null || v === undefined ? "—" : v >= 1000 ? v.toFixed(2) : v.toPrecision(7);
+const fmtRange = (r) => r ? `${fmtPrice(r[0])}–${fmtPrice(r[1])}` : "—";
+const fmtShare = (x) => x >= 0.01 ? `${(x * 100).toFixed(1)}%` : `${(x * 100).toFixed(3)}%`;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function save() {
-  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon });
+  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon, ft: $("fTvl").value, fv: $("fVol").value, fr: $("fTier").value });
   history.replaceState(null, "", `?${p}`);
   try { localStorage.setItem("binpicker", p.toString()); } catch {}
 }
@@ -144,6 +167,9 @@ function restore() {
   if (BP.STRATEGIES[p.get("s")]) state.strategy = p.get("s");
   if (BP.WINDOWS.includes(p.get("w"))) state.window = p.get("w");
   if (BP.HORIZONS.includes(p.get("h"))) state.horizon = p.get("h");
+  for (const [id, key] of [["fTvl", "ft"], ["fVol", "fv"], ["fTier", "fr"]]) {
+    const v = p.get(key); if (v !== null && [...$(id).options].some((o) => o.value === v)) $(id).value = v;
+  }
 }
 
 function renderSettings() {
@@ -164,16 +190,25 @@ async function loadChains() {
 
 async function loadPools() {
   setStatus("Loading pools…");
-  state.pools = await BP.api.pools(state.chain);
+  state.allPools = await BP.api.pools(state.chain);
+  applyPoolFilter();
+  setStatus("");
+}
+
+// Pool list filters asked for in #feedback (min TVL, min 24h volume, tier). Returns true when the selected pool changed.
+function applyPoolFilter() {
+  const tiers = $("fTier").value ? $("fTier").value.split(",") : null;
+  state.pools = BP.filterPools(state.allPools || [], { minTvl: Number($("fTvl").value), minVolume24h: Number($("fVol").value), tiers });
   const opt = (p) => {
-    const tier = p.classificationSummary?.tierQualification || "";
-    const apr = p.markoutByWindow?.["7d"]?.byHorizon?.["5m"]?.aprBps;
-    return `<option value="${p.poolAddress}">${esc(p.pair)} · ${tier} · TVL ${fmtUsd(p.tvlFiat || 0)} · 7d markout ${fmtPct(apr)} · ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
+    const tier = p.classificationSummary?.tierQualification || "unclassified";
+    return `<option value="${p.poolAddress}">${esc(p.pair)} · ${tier} · TVL ${fmtUsd(p.tvlFiat || 0)} · 24h vol ${fmtUsd(p.volumeByWindow?.["24h"] || 0)} · ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
   };
-  $("pool").innerHTML = state.pools.map(opt).join("");
+  $("pool").innerHTML = state.pools.length ? state.pools.map(opt).join("") : `<option value="">No pool matches the filter</option>`;
+  const before = state.pool;
   if (!state.pool || !state.pools.some((p) => p.poolAddress.toLowerCase() === state.pool.toLowerCase())) state.pool = state.pools[0]?.poolAddress || null;
   $("pool").value = state.pools.find((p) => p.poolAddress.toLowerCase() === state.pool?.toLowerCase())?.poolAddress || "";
-  setStatus("");
+  setStatus(`${state.pools.length} of ${(state.allPools || []).length} pools match the filter`);
+  return before !== state.pool;
 }
 
 async function loadPool() {
@@ -182,7 +217,8 @@ async function loadPool() {
   const r = await BP.loadScored(state.chain, state.pool, { window: state.window, horizon: state.horizon });
   state.meta = r.meta;
   state.curBin = r.curBin;
-  state.rows = r.rows;
+  state.reference = r.reference;
+  state.rows = r.rows.map((x) => ({ ...x, price: x.priceRange ? x.priceRange[0] : null }));
   renderHave();
   setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin}`);
   render();
@@ -201,7 +237,7 @@ function currentPlan() {
 function render() {
   if (!state.meta) return;
   const p = currentPlan();
-  renderPool(p); renderChart(p); renderPlan(p); renderTable(p); save();
+  renderPool(p); renderChart(p); renderPlan(p); renderTable(p); renderExplain(); save();
 }
 
 function renderPool() {
@@ -219,6 +255,7 @@ function renderPool() {
       <div><b>${fmtUsd(m.tvlFiat || 0)}</b>TVL</div>
       <div><b>${fmtUsd(m.volumeByWindow?.[state.window] || 0)}</b>Volume ${winLabel()}</div>
       <div><b class="${cls(mk)}">${fmtPct(mk)}</b>Pool markout ${state.horizon} · ${winLabel()}</div>
+      <div><b>${state.reference ? "≈ " + fmtPrice(state.reference) : "—"}</b>Reference, ${esc(m.token1Symbol)} per ${esc(m.token0Symbol)}</div>
       <div><b>${esc(m.adminUsername || "—")}${m.verifiedAdmin ? " ✓" : ""}</b>Curator</div>
       <div><b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b>Curator + Metric cut</div>
     </div>
@@ -266,6 +303,7 @@ function renderChart(plan) {
     if (bin === null) { tip.style.display = "none"; return; }
     const r = state.rows.find((x) => x.bin === Number(bin));
     tip.innerHTML = `<div style="margin-bottom:6px"><b>#${r.bin}</b> <span style="color:var(--muted)">${fmtDev(r.edges)}</span></div>
+      <div class="r"><span>≈ Price</span><span>${fmtRange(r.priceRange)}</span></div>
       <div class="r"><span>Holds</span><span>${esc(sym(r.side))}</span></div>
       <div class="r"><span>Liquidity</span><span>${fmtUsd(r.liquidity)}</span></div>
       <div class="r"><span>Volume ${winLabel()}</span><span>${fmtUsd(r.volume)}</span></div>
@@ -279,6 +317,14 @@ function renderChart(plan) {
     tip.style.top = `${Math.max(0, ev.clientY - box.top - 150)}px`;
   };
   svg.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+// A live example for the explainer: a bin in this pool where markout and trading PnL point in different directions.
+function renderExplain() {
+  const ex = state.rows.filter((r) => r.mkMain > 0 && r.pnl !== null && r.pnl < 0 && r.swaps > 0).sort((a, b) => b.volume - a.volume)[0];
+  $("explainExample").innerHTML = ex
+    ? `<b>In this pool right now:</b> bin #${ex.bin} has a ${state.horizon} markout of <span class="pos">${fmtPct(ex.mkMain)}</span> over ${winLabel()} but a trading PnL of <span class="neg">${fmtPct(ex.pnl)}</span>. Traders paid it the spread, yet the tokens it ended up holding moved against it afterwards.`
+    : "";
 }
 
 // Closest built-in Metric shape for each strategy; the rest need the bars dragged by hand.
@@ -307,7 +353,7 @@ function renderPlan(plan) {
     <div style="margin-top:12px">
       ${plan.bins.map((b) => `<div class="planrow">
         <span class="idx">#${b.bin}</span>
-        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${fmtDev(b.edges)} · ${esc(sym(b.side))}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mkDay)}">${fmtPct(b.mkDay)}</span></span></span>
+        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${esc(sym(b.side))} · ≈ ${fmtRange(b.priceRange)}</span><br><span class="dev">${fmtDev(b.edges)}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mkDay)}">${fmtPct(b.mkDay)}</span> · you'd own ${fmtShare(b.binShare)} of the bin</span></span>
         <span class="usd">${fmtUsd(b.usd)}<small>${fmtPct(b.effAprBps)}</small></span>
       </div>`).join("")}
     </div>
@@ -329,7 +375,7 @@ function renderPlan(plan) {
 }
 
 const COLS = () => [
-  ["bin", "Bin"], ["side", "Holds"], ["swaps", `Swaps ${winLabel()}`], ["volume", `Volume ${winLabel()}`], ["liquidity", "Liquidity"],
+  ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Holds"], ["swaps", `Swaps ${winLabel()}`], ["volume", `Volume ${winLabel()}`], ["liquidity", "Liquidity"],
   ["mkMain", `Markout ${state.horizon} · ${winLabel()}`], ["mkDay", `Markout ${state.horizon} · 24h`], ["pnl", `PnL ${winLabel()}`], ["score", "Score"],
 ];
 function renderTable(plan) {
@@ -341,6 +387,7 @@ function renderTable(plan) {
   $("table").innerHTML = `<table><thead><tr>${COLS().map(([k, t]) => `<th data-k="${k}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
     ${rows.map((r) => `<tr class="${picked.has(r.bin) ? "pick" : r.bin === state.curBin ? "cur" : !r.eligible ? "dim" : ""}" title="${esc(r.reasons.join("; "))}">
       <td>#${r.bin}${r.bin === state.curBin ? " · active" : ""}</td>
+      <td>${r.priceRange ? fmtPrice(r.priceRange[0]) : "—"}</td>
       <td class="${sideCls[r.side]}">${esc(sym(r.side))}</td>
       <td>${r.swaps}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
       <td class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</td><td class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</td>
@@ -355,6 +402,7 @@ function renderTable(plan) {
 
 function fail(e) { console.error(e); setStatus(`Error: ${e.message}. The Metric API may be busy; try again.`); }
 
+for (const id of ["fTvl", "fVol", "fTier"]) $(id).onchange = () => { if (applyPoolFilter()) loadPool().catch(fail); else save(); };
 $("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; await loadPools(); await loadPool(); };
 $("pool").onchange = () => { state.pool = $("pool").value; loadPool().catch(fail); };
 $("amount").oninput = render; $("count").onchange = render;
