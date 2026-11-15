@@ -1,3 +1,22 @@
+# dependencies and build output
 node_modules/
-.DS_Store
+_site/
+
+# local test data (test/sql/snapshot.js writes it)
 test/sql/snapshot.json
+__pycache__/
+*.pyc
+
+# secrets and local environment
+.env
+.env.*
+
+# editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
