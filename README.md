@@ -6,7 +6,7 @@
 Bin Picker ranks every bin you can fund by how much it actually earned, drops the ones that lose money, sit idle or are too
 thin to trust, and tells you which bins to click and how to split.
 
-**Live:** `https://<your-github-user>.github.io/metric-bin-picker/` · read-only, no wallet connection, no sign-up.
+**Live:** https://roprero.github.io/metric-bin-picker/ · read-only, no wallet connection, no sign-up.
 
 ![Bin Picker on the USDC/USDT pool](docs/screenshot.png)
 
