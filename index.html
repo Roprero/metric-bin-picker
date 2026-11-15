@@ -182,10 +182,19 @@ function renderSettings() {
 
 function setStatus(t) { $("status").textContent = t; }
 
-async function loadChains() {
-  const chains = await BP.api.chains();
+// The three chains Metric serves today: shown at once, then replaced by the API's list when it arrives.
+const KNOWN_CHAINS = [{ chainId: 1, name: "ethereum" }, { chainId: 56, name: "BSC" }, { chainId: 4663, name: "Robinhood" }];
+function renderChains(chains) {
   $("chain").innerHTML = chains.map((c) => `<option value="${c.chainId}">${esc(c.name)}</option>`).join("");
   $("chain").value = String(state.chain);
+}
+async function loadChains() { renderChains(await BP.api.chains()); }
+
+// After the first plan, fetch the other windows while the visitor reads, so switching the window is instant too.
+function prefetchWindows() {
+  const pool = state.pool, chain = state.chain;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+  idle(() => BP.WINDOWS.filter((w) => w !== state.window).forEach((w) => BP.api.bins(chain, pool, w).catch(() => {})));
 }
 
 async function loadPools() {
@@ -213,14 +222,19 @@ function applyPoolFilter() {
 
 async function loadPool() {
   if (!state.pool) return;
+  const t0 = performance.now();
   setStatus("Loading bins…");
   const r = await BP.loadScored(state.chain, state.pool, { window: state.window, horizon: state.horizon });
   state.meta = r.meta;
+  state.loadedPool = state.pool;
   state.curBin = r.curBin;
   state.reference = r.reference;
   state.rows = r.rows.map((x) => ({ ...x, price: x.priceRange ? x.priceRange[0] : null }));
   renderHave();
-  setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin}`);
+  // performance.now() counts from navigation start, so the first load shows the full time a visitor waited for a plan
+  const ms = Math.round(performance.now() - t0);
+  setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin} · ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
+  state.firstPlanMs = state.firstPlanMs || Math.round(performance.now());
   render();
 }
 
@@ -404,7 +418,7 @@ function fail(e) { console.error(e); setStatus(`Error: ${e.message}. The Metric 
 
 for (const id of ["fTvl", "fVol", "fTier"]) $(id).onchange = () => { if (applyPoolFilter()) loadPool().catch(fail); else save(); };
 $("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; await loadPools(); await loadPool(); };
-$("pool").onchange = () => { state.pool = $("pool").value; loadPool().catch(fail); };
+$("pool").onchange = () => { state.pool = $("pool").value; loadPool().then(prefetchWindows).catch(fail); };
 $("amount").oninput = render; $("count").onchange = render;
 $("have").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.have = v; renderHave(); render(); };
 $("strategy").onchange = () => { state.strategy = $("strategy").value; $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint; render(); };
@@ -415,7 +429,17 @@ window.addEventListener("resize", () => state.meta && renderChart(currentPlan())
 (async () => {
   restore();
   renderSettings();
-  try { await loadChains(); await loadPools(); await loadPool(); } catch (e) { fail(e); }
+  renderChains(KNOWN_CHAINS);
+  // Three independent fetches at once instead of chains → pools → pool one after another (one round trip ≈ 0.3 s).
+  // A pool from the link or the last visit is loaded right away; the pool list fills in beside it.
+  const chainsP = loadChains().catch(() => {});
+  const poolP = state.pool ? loadPool() : null;
+  try {
+    await loadPools();
+    if (!poolP || state.pool !== state.loadedPool) await loadPool(); else await poolP;
+    prefetchWindows();
+  } catch (e) { fail(e); }
+  await chainsP;
 })();
 </script>
 </body>

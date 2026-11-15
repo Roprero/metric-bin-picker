@@ -202,11 +202,22 @@
     return w;
   }
 
-  async function getJson(url) {
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!r.ok) throw new Error(`${r.status} ${url}`);
-    return r.json();
+  // Every call to the API costs ~0.3 s (the backend is in Tokyo and Cloudflare does not cache it), so keep responses for a
+  // minute and share requests already in flight: switching the horizon or strategy then costs no network at all.
+  const CACHE_TTL_MS = 60000;
+  const cache = new Map();
+  function getJson(url) {
+    const hit = cache.get(url);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.promise;
+    const promise = fetch(url, { headers: { Accept: "application/json" } }).then((r) => {
+      if (!r.ok) throw new Error(`${r.status} ${url}`);
+      return r.json();
+    });
+    cache.set(url, { at: Date.now(), promise });
+    promise.catch(() => cache.delete(url)); // never cache a failure
+    return promise;
   }
+  const clearCache = () => cache.clear();
 
   const api = {
     chains: () => getJson(`${API}/chains`).then((d) => d.chains),
@@ -246,7 +257,7 @@
   const BinPicker = {
     API, WINDOWS, HORIZONS, DEFAULTS, STRATEGIES,
     binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings,
-    estimateReference, binPriceRange, filterPools, quoteUsable, api, loadScored,
+    estimateReference, binPriceRange, filterPools, quoteUsable, api, loadScored, clearCache,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = BinPicker;
   else root.BinPicker = BinPicker;

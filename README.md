@@ -82,6 +82,18 @@ Markout is a past measurement, not a forecast. Read the pool's tier and warnings
 The per-bin endpoint is the one the Metric app itself uses. It is public (no key, CORS `*`) but not in the API docs, so it may
 change; the daily CI run against live pools is there to catch that.
 
+## Speed
+
+Every call to the Metric API costs about 0.3 s (the backend is in Tokyo and its responses are not cached by Cloudflare), so the
+page avoids waiting on calls in a row:
+
+- chains, the pool list and the selected pool load in parallel; a pool from the link starts loading at once;
+- responses are kept for a minute and shared while in flight, so changing the horizon, strategy or amount needs no network;
+- after the first plan the other windows load in the background, so changing the window is instant too.
+
+Measured in headless Chrome, fresh cache, median of 5 (v0.3.0 → now): link to plan 1875 → 895 ms; horizon 349 → 27 ms;
+window 392 → 23 ms; strategy or amount ≈ 25 ms.
+
 ## Safety
 
 Bin Picker only reads public data. It never connects a wallet, asks for a signature, stores keys or tracks you. Deposits happen

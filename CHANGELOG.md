@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Faster: parallel first load, a one-minute response cache, background fetch of the other windows. Link to plan 1875 → 895 ms;
+  horizon switch 349 → 27 ms; window switch 392 → 23 ms.
+- The page shows how long the plan took to load.
+
 ## 0.3.0
 
 - Approximate price range for every bin (tooltip, plan, table) and the pool's reference price. Asked for in #feedback.
