@@ -21,13 +21,21 @@ Every plan is a link (`?chain=1&pool=0x…&amt=1000&have=token0&s=curve&w=30d&h=
 
 ## What it shows
 
-- **Your plan:** the bins, the amount for each, the approximate price range each bin covers, the part of the bin you would own,
-  and the APR you can expect after your own deposit dilutes the bin.
-- **Pool card:** tier and its reasons, curator, the curator's and Metric's cut, reference price, and warnings: custom pricing,
-  feed down, paused pool, a pool idle for 24h.
-- **All bins:** a sortable table and chart with swaps, volume, liquidity, markout over the window and the last 24h, trading PnL
-  and the score.
-- **How to read these numbers:** markout APR vs trading PnL, with a live example from the pool you picked.
+- **The ladder:** every bin as a row of an order book, highest price on top, with a dashed line where the pool trades now.
+  Blue bars above the price take token0, green bars below take token1, a brighter bar earned more, a hatched bar lost money.
+  Your plan sits on it as yellow orders with their dollar amounts. Select a row for that bin's full numbers.
+- **Your plan:** the amount, the token you hold, how to split it (seven strategies, each drawn as its shape), the expected APR
+  after your own deposit dilutes each bin, the orders with their price ranges and the part of each bin you would own, and the
+  steps to place them in Metric.
+- **Pool facts:** tier, TVL, volume, pool markout, reference price, curator and their cut, with warnings: custom pricing, feed
+  down, paused pool, a pool idle for 24h.
+- **Every bin as a table** and **how to read these numbers** (markout APR vs trading PnL, with a live example) below.
+
+## Design
+
+An order-book ladder, because the question the page answers is the one a ladder answers: at which price levels to rest
+liquidity, and how much at each. One loud colour, brass yellow, is reserved for your money; the two sides of the book keep
+calm blue and green. Prices use a monospace face so their decimals line up; everything else uses Barlow Semi Condensed.
 
 ## Strategies
 
@@ -91,8 +99,8 @@ page avoids waiting on calls in a row:
 - responses are kept for a minute and shared while in flight, so changing the horizon, strategy or amount needs no network;
 - after the first plan the other windows load in the background, so changing the window is instant too.
 
-Measured in headless Chrome, fresh cache, median of 5 (v0.3.0 → now): link to plan 1875 → 895 ms; horizon 349 → 27 ms;
-window 392 → 23 ms; strategy or amount ≈ 25 ms.
+Measured in headless Chrome, fresh cache, median of 5 (v0.3.0 → v0.5.0): link to plan 1875 → 510 ms; horizon 349 → 29 ms;
+window 392 → 28 ms; strategy or amount ≈ 50 ms (the whole ladder redraws).
 
 ## Safety
 
@@ -105,7 +113,7 @@ in the Metric app, where you check what you sign.
 npm start           # http://127.0.0.1:8765
 npm test            # offline: core scoring + 24 user scenarios
 npm run test:live   # every window × horizon × strategy on live pools
-npm run test:ui     # the page in headless Chrome for 6 shareable links
+npm run test:ui     # the page in headless Chrome for 8 shareable links
 ```
 
 GitHub Actions runs the offline tests on every push and the live and browser tests daily. Pushing to `main` deploys the page to

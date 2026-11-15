@@ -66,13 +66,13 @@ const SCENARIOS = [
     name: "Curve 30d/1m: labels follow the window and horizon, hint names the strategy",
     q: `?chain=1&pool=${USDC_USDT}&amt=617&have=token0&n=4&s=curve&w=30d&h=1m`,
     check: (h, txt) => {
-      for (const s of ["Markout 1m · 30d", "Volume 30d", "most weight next to the price", "drag each bar"]) if (!txt.includes(s)) throw new Error(`missing "${s}"`);
+      for (const s of ["Markout 1m, 30d", "Volume 30d", "most weight next to the price", "drag each bar"]) if (!txt.includes(s)) throw new Error(`missing "${s}"`);
     },
   },
   {
     name: "24h window and 30m horizon load",
     q: `?chain=1&pool=${USDC_USDT}&amt=617&have=token0&n=2&w=24h&h=30m`,
-    check: (h, txt) => { if (!txt.includes("Markout 30m · 24h")) throw new Error("24h/30m labels missing"); },
+    check: (h, txt) => { if (!txt.includes("Markout 30m, 24h")) throw new Error("24h/30m labels missing"); },
   },
   {
     name: "pool filter green only on BSC: every listed pool is green",
@@ -80,8 +80,28 @@ const SCENARIOS = [
     check: (h, txt) => {
       const opts = [...h.matchAll(/<option value="0x[^"]+">([^<]+)<\/option>/g)].map((m) => m[1]);
       if (!opts.length && !txt.includes("No pool matches")) throw new Error("no pools and no empty-state message");
-      const bad = opts.filter((o) => !o.includes("· green ·"));
+      const bad = opts.filter((o) => !o.includes(", green,"));
       if (bad.length) throw new Error(`non-green pools listed: ${bad.slice(0, 2)}`);
+    },
+  },
+  {
+    name: "ladder: a price line, one row per bin, your orders on the picked rows only",
+    q: `?chain=1&pool=${USDC_USDT}&amt=617&have=token0&n=3`,
+    check: (h, txt) => {
+      if (!/price is here, bin #-?\d+/.test(txt)) throw new Error("no price line");
+      const rungs = (h.match(/class="rung /g) || []).length;
+      if (rungs < 5) throw new Error(`only ${rungs} ladder rows`);
+      const orders = (h.match(/class="ord"/g) || []).length;
+      if (orders !== planBins(h).length) throw new Error(`${orders} order blocks for ${planBins(h).length} planned bins`);
+    },
+  },
+  {
+    name: "strategy picker: seven choices, the one in the link is checked",
+    q: `?chain=1&pool=${USDC_USDT}&s=bidask`,
+    check: (h) => {
+      const radios = h.match(/name="strategy" value="(\w+)"/g) || [];
+      if (radios.length !== 7) throw new Error(`${radios.length} strategies`);
+      if (!/value="bidask" checked/.test(h)) throw new Error("bidask not checked");
     },
   },
   {
@@ -97,7 +117,8 @@ const SCENARIOS = [
   let ok = 0; const failed = [];
   for (const s of SCENARIOS) {
     try {
-      const h = await dom(base + s.q);
+      // drop <script> bodies: the page's own template strings would otherwise match the checks below
+      const h = (await dom(base + s.q)).replace(/<script[\s\S]*?<\/script>/g, "");
       const txt = text(h);
       if (/Error:/.test((txt.match(/Updated[^·]*|Error:[^.]*/) || [""])[0])) throw new Error(txt.match(/Error:[^.]*/)[0]);
       s.check(h, txt);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Redesign as an order-book ladder: one row per bin by price, the current price as a line, your plan as yellow orders.
+  Select a row for its numbers. Strategies are picked by their drawn shape.
+- The plan panel comes first on phones; skip link, keyboard-reachable rows, reduced motion respected.
+- Two more browser tests: the ladder matches the plan, the strategy in the link is selected.
+
 ## 0.4.0
 
 - Faster: parallel first load, a one-minute response cache, background fetch of the other windows. Link to plan 1875 → 895 ms;

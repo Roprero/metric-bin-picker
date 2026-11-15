@@ -3,133 +3,233 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0F1A24">
 <title>Bin Picker for Metric</title>
-<meta name="description" content="Pick the Metric bins that actually earn: per-bin markout, volume and liquidity, ranked for the token you hold.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='8' width='3' height='7' fill='%2338e8d8'/><rect x='6' y='3' width='3' height='12' fill='%2338e8d8'/><rect x='11' y='6' width='3' height='9' fill='%2338e8d8'/></svg>">
+<meta name="description" content="Which Metric bins should hold your liquidity? A price ladder of every bin you can fund, ranked by what it actually earned, with a ready plan for the token you hold.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='8' height='2.5' fill='%237AA9E8'/><rect x='2' y='6.75' width='12' height='2.5' fill='%23F2C14E'/><rect x='2' y='11.5' width='6' height='2.5' fill='%235CC8A8'/></svg>">
+<link rel="preconnect" href="https://api.metric.xyz" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #121314; --panel: #1b1c1e; --panel2: #222326; --line: #2e3034;
-  --text: #ecedee; --muted: #8b8f96; --faint: #5d6168;
-  --accent: #38e8d8; --accent-dim: #1f7f77; --pick: #8be4ff;
-  --good: #3ddc97; --warn: #f2b84b; --bad: #ef6b73;
-  --t0: #4d8dff; --t1: #26c29a;
+  --ink: #0F1A24;      /* page */
+  --slate: #16242F;    /* surfaces */
+  --well: #1C2D3A;     /* inputs, hover */
+  --rule: #24384A;
+  --paper: #DCE6EE;    /* text */
+  --fog: #8EA3B5;      /* secondary text */
+  --dim: #56697A;
+  --ask: #7AA9E8;      /* token0 side: bins above the price */
+  --bid: #5CC8A8;      /* token1 side: bins below the price */
+  --order: #F2C14E;    /* your liquidity, the one loud colour on the page */
+  --loss: #E8696B;
+  --warn: #E7B45A;
+  --ui: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --num: "IBM Plex Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
-a { color: var(--pick); text-decoration: none; } a:hover { text-decoration: underline; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
-header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
-header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
-header .sub { color: var(--muted); }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-.controls { display: grid; grid-template-columns: 110px minmax(220px, 1fr) 120px 170px 80px; gap: 10px; align-items: end; }
-.controls.second { grid-template-columns: 170px 150px 340px minmax(0, 1fr); margin-top: 10px; }
-.explain { margin-top: 16px; } .explain summary { cursor: pointer; font-weight: 600; } .explain p { color: var(--muted); margin: 8px 0; }
-.explain b { color: var(--text); }
-.hint { color: var(--muted); font-size: 12px; align-self: center; }
-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
-select, input { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: inherit; }
-select:focus, input:focus { outline: 2px solid var(--accent-dim); border-color: transparent; }
-.seg { display: flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
-.seg button { flex: 1; background: none; border: 0; color: var(--muted); font: inherit; padding: 6px 4px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
-.seg button.on { background: #33363b; color: var(--text); }
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "pool plan" "table plan"; align-items: start; gap: 16px; margin-top: 16px; }
-#poolcard { grid-area: pool; } #plan { grid-area: plan; position: sticky; top: 16px; } .tablebox { grid-area: table; }
-.poolhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pair { font-size: 20px; font-weight: 600; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid; margin-left: 8px; vertical-align: 2px; }
-.badge.green { color: var(--good); border-color: #2a6e52; } .badge.yellow { color: var(--warn); border-color: #6e5726; }
-.badge.red { color: var(--bad); border-color: #70343a; } .badge.unclassified { color: var(--muted); border-color: var(--line); }
-.stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 12px; }
-.stats b { display: block; color: var(--text); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.warns { margin-top: 12px; display: grid; gap: 6px; }
-.warn { padding: 8px 10px; border-radius: 9px; font-size: 13px; border: 1px solid; }
-.warn.warn { color: var(--warn); border-color: #5a4720; background: #241f14; } .warn.bad { color: var(--bad); border-color: #5d2a2f; background: #261618; }
-.chartbox { position: relative; margin-top: 16px; }
-svg { display: block; width: 100%; height: 260px; }
-.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
-.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-.tip { position: absolute; pointer-events: none; background: #0d0e0f; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; min-width: 210px; display: none; z-index: 2; }
-.tip .r { display: flex; justify-content: space-between; gap: 14px; } .tip .r span:first-child { color: var(--muted); }
-.plan h2, .tablebox h2 { font-size: 15px; margin: 0 0 10px; }
-.big { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.planrow { display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); align-items: center; font-variant-numeric: tabular-nums; }
-.planrow .idx { font-weight: 600; color: var(--pick); }
-.planrow .dev { color: var(--muted); font-size: 12px; }
-.planrow .usd { text-align: right; } .planrow .usd small { display: block; color: var(--muted); }
-.steps { margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; } .steps li { margin: 4px 0; } .steps b { color: var(--text); }
-.btn { display: inline-block; margin-top: 12px; background: var(--pick); color: #0b1418; font-weight: 600; padding: 10px 14px; border-radius: 10px; }
-.btn:hover { text-decoration: none; filter: brightness(1.05); }
-.empty { color: var(--muted); padding: 12px 0; }
-.tablebox { overflow-x: auto; min-width: 0; }
-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
-th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; }
-th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
-tr.pick td { background: rgba(139, 228, 255, 0.07); } tr.pick td:first-child { color: var(--pick); font-weight: 600; }
-tr.cur td { background: rgba(255, 255, 255, 0.04); }
-tr.dim td { color: var(--faint); }
-.pos { color: var(--good); } .neg { color: var(--bad); }
-.side0 { color: var(--t0); } .side1 { color: var(--t1); } .sideb { color: var(--muted); }
-.status { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 18px; }
-footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.6; }
-@media (max-width: 960px) {
-  .controls { grid-template-columns: 1fr 1fr; }
-  .controls .poolsel { grid-column: 1 / -1; }
-  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pool" "plan" "table"; }
-  #plan { position: static; }
+html { background: var(--ink); }
+body { margin: 0; color: var(--paper); font: 16px/1.4 var(--ui); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+a { color: var(--ask); }
+button, input, select { font: inherit; color: inherit; touch-action: manipulation; }
+.skip { position: absolute; left: 8px; top: -40px; padding: 6px 10px; background: var(--order); color: var(--ink); border-radius: 4px; z-index: 2; }
+.skip:focus { top: 8px; }
+:focus-visible { outline: 2px solid var(--order); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 56px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* top bar: what this is and which pool */
+.top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 28px; align-items: end; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.brand h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; }
+.brand p { margin: 6px 0 0; color: var(--fog); }
+.poolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; justify-content: flex-end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { color: var(--fog); font-size: 14px; }
+select, input[type="number"] { background: var(--well); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-height: 40px; }
+select { background-color: var(--well); color: var(--paper); max-width: 100%; }
+#pool { width: min(520px, 100%); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filters select { min-height: 34px; padding: 4px 8px; font-size: 14px; }
+
+/* pool facts */
+.facts { display: flex; flex-wrap: wrap; gap: 6px 26px; margin: 14px 0 0; color: var(--fog); font-size: 15px; }
+.facts b { color: var(--paper); font-weight: 600; }
+.tier { font-weight: 600; } .tier.green { color: var(--bid); } .tier.yellow { color: var(--warn); } .tier.red { color: var(--loss); } .tier.unclassified { color: var(--fog); }
+.warns { display: grid; gap: 6px; margin-top: 12px; }
+.warn { padding: 8px 12px; border-left: 3px solid var(--warn); background: rgba(231, 180, 90, 0.08); color: #EBD3A4; font-size: 15px; }
+.warn.bad { border-color: var(--loss); background: rgba(232, 105, 107, 0.08); color: #F1B8B9; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; margin-top: 20px; align-items: start; }
+
+/* the ladder: one row per bin, highest price on top */
+.ladder-head { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px 64px 22px; gap: 10px; padding: 0 8px 6px; color: var(--fog); font-size: 14px; }
+.ladder-head span:nth-child(n+3) { text-align: right; }
+.ladder { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.rung { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px 64px 22px; gap: 10px; align-items: center; width: 100%; min-height: 26px; padding: 0 8px;
+  background: none; border: 0; border-bottom: 1px solid rgba(36, 56, 74, 0.55); text-align: left; cursor: pointer; }
+.rung:hover, .rung[aria-pressed="true"] { background: var(--well); }
+.rung .px { font-family: var(--num); font-size: 13px; color: var(--fog); text-align: right; }
+.rung .depth { position: relative; height: 14px; }
+.rung .liq { position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: 1px; background: var(--side); opacity: var(--o, 0.6); }
+.rung .ord { position: absolute; top: -1px; bottom: -1px; left: var(--at, 0); width: var(--w, 0); min-width: 6px; background: var(--order); border-radius: 2px; transition: width 0.2s ease, left 0.2s ease; }
+.rung .ordtag { position: absolute; top: -3px; left: calc(var(--at, 0) + var(--w, 0) + 6px); font-size: 14px; font-weight: 600; color: var(--order); white-space: nowrap; }
+.rung .m { text-align: right; font-size: 15px; }
+.rung .flag { text-align: center; color: var(--dim); font-size: 13px; }
+.rung.above { --side: var(--ask); } .rung.below { --side: var(--bid); }
+.rung.out .px, .rung.out .m { color: var(--dim); }
+.rung.losing .liq { background: repeating-linear-gradient(135deg, var(--loss) 0 3px, transparent 3px 6px); opacity: 0.55; }
+.rung.losing .flag { color: var(--loss); }
+.rung.mine .px { color: var(--order); font-weight: 500; }
+.priceline { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; padding: 3px 8px; color: var(--paper); font-size: 14px; }
+.priceline .px { font-family: var(--num); font-size: 13px; text-align: right; color: var(--paper); }
+.priceline .bar { border-top: 1px dashed var(--paper); position: relative; }
+.priceline .bar span { position: absolute; right: 0; top: -10px; padding-left: 8px; background: var(--ink); }
+.pos { color: var(--bid); } .neg { color: var(--loss); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--fog); font-size: 14px; }
+.key i { display: inline-block; width: 14px; height: 8px; margin-right: 6px; border-radius: 1px; vertical-align: 1px; }
+.detail { margin-top: 14px; padding: 12px 14px; background: var(--slate); border-radius: 6px; font-size: 15px; min-height: 52px; color: var(--fog); }
+.detail h3 { margin: 0 0 6px; font-size: 17px; color: var(--paper); }
+.detail dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 18px; margin: 0; }
+.detail dt { color: var(--fog); font-size: 13px; } .detail dd { margin: 0 0 4px; color: var(--paper); }
+
+/* the ticket: what to deposit and how */
+.ticket { position: sticky; top: 16px; background: var(--slate); border-radius: 10px; padding: 18px; }
+.ticket h2 { margin: 0 0 12px; font-size: 21px; font-weight: 600; }
+.amount { display: flex; align-items: center; gap: 8px; background: var(--well); border: 1px solid var(--rule); border-radius: 8px; padding: 4px 12px; }
+.amount span { color: var(--fog); font-size: 22px; }
+.amount input { flex: 1; min-width: 0; border: 0; background: none; font-size: 30px; font-weight: 600; padding: 6px 0; outline: none; }
+.amount:focus-within { outline: 2px solid var(--order); outline-offset: 2px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-top: 10px; }
+.seg button { background: var(--well); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 4px; cursor: pointer; color: var(--fog); }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); font-weight: 600; }
+fieldset { border: 0; margin: 14px 0 0; padding: 0; min-width: 0; }
+legend { color: var(--fog); font-size: 14px; padding: 0; margin-bottom: 6px; }
+.shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.shape { position: relative; display: grid; justify-items: center; gap: 2px; padding: 6px 2px 5px; background: var(--well); border: 1px solid var(--rule); border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--fog); text-align: center; line-height: 1.1; }
+.shape input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+.shape svg { width: 44px; height: 18px; }
+.shape:has(input:checked) { border-color: var(--order); color: var(--paper); }
+.shape:has(input:checked) svg rect { fill: var(--order); }
+.shape:has(input:focus-visible) { outline: 2px solid var(--order); outline-offset: 2px; }
+.hint { margin: 6px 0 0; color: var(--fog); font-size: 14px; min-height: 2.6em; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 10px; }
+.row3 select { width: 100%; min-height: 36px; padding: 4px 8px; }
+.result { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.apr { font-size: 46px; font-weight: 700; line-height: 1; color: var(--order); }
+.apr small { font-size: 16px; font-weight: 500; color: var(--fog); margin-left: 6px; }
+.week { color: var(--fog); margin-top: 4px; }
+.orders { list-style: none; margin: 12px 0 0; padding: 0; }
+.orders li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--rule); }
+.orders .what { font-weight: 600; } .orders .usd { text-align: right; font-weight: 600; color: var(--order); }
+.orders .sub { grid-column: 1 / -1; color: var(--fog); font-size: 14px; }
+.steps { margin: 12px 0 0; padding-left: 20px; color: var(--fog); font-size: 15px; } .steps li { margin: 4px 0; } .steps b { color: var(--paper); }
+.go { display: block; margin-top: 14px; padding: 12px; text-align: center; background: var(--order); color: var(--ink); font-weight: 700; border-radius: 8px; text-decoration: none; }
+.go:hover { filter: brightness(1.06); }
+.links { display: flex; gap: 16px; margin-top: 10px; font-size: 15px; }
+.links button { background: none; border: 0; padding: 0; color: var(--ask); cursor: pointer; text-decoration: underline; }
+.empty { color: var(--fog); }
+.status { margin-top: 12px; color: var(--dim); font-size: 13px; min-height: 18px; }
+
+/* below the fold: raw table and explainer */
+details { margin-top: 24px; border-top: 1px solid var(--rule); padding-top: 12px; }
+summary { cursor: pointer; font-size: 18px; font-weight: 600; }
+.tablewrap { overflow-x: auto; margin-top: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { color: var(--fog); font-weight: 500; cursor: pointer; }
+th:first-child, td:first-child, th:nth-child(3), td:nth-child(3) { text-align: left; }
+td.num { font-family: var(--num); font-size: 13px; }
+tr.mine td { color: var(--order); } tr.out td { color: var(--dim); } tr.now td { background: var(--slate); }
+.t0 { color: var(--ask); } .t1 { color: var(--bid); }
+.explain p { max-width: 74ch; color: var(--fog); } .explain b { color: var(--paper); }
+footer { margin-top: 28px; color: var(--dim); font-size: 14px; max-width: 90ch; }
+
+@media (max-width: 980px) {
+  .top { grid-template-columns: 1fr; } .poolbar { justify-content: flex-start; }
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .ticket { position: static; order: -1; }
 }
+@media (max-width: 560px) {
+  .ladder-head, .rung { grid-template-columns: 78px minmax(0, 1fr) 54px 18px; }
+  .ladder-head span:nth-child(4), .rung .m.day { display: none; }
+  .priceline { grid-template-columns: 78px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .rung .ord { transition: none; } }
 </style>
 </head>
 <body>
+<a class="skip" href="#ticket-title">Skip to your plan</a>
 <div class="wrap">
-  <header>
-    <h1>Bin Picker</h1>
-    <span class="sub">for <a href="https://app.metric.xyz" target="_blank" rel="noopener">Metric</a> · find the bins that actually earn</span>
+  <header class="top">
+    <div class="brand">
+      <h1>Bin Picker</h1>
+      <p>Which <a href="https://app.metric.xyz" target="_blank" rel="noopener">Metric</a> bins should hold your liquidity</p>
+    </div>
+    <div class="poolbar">
+      <label class="field"><span>Chain</span><select id="chain"></select></label>
+      <label class="field"><span>Pool</span><select id="pool"><option>Loading pools…</option></select></label>
+      <div class="field"><span>Show pools with</span><div class="filters">
+        <select id="fTvl" aria-label="Minimum TVL"><option value="0">any TVL</option><option value="10000">TVL ≥ $10K</option><option value="100000">TVL ≥ $100K</option><option value="1000000">TVL ≥ $1M</option></select>
+        <select id="fVol" aria-label="Minimum 24h volume"><option value="0">any volume</option><option value="1">trades in 24h</option><option value="100000">24h ≥ $100K</option><option value="1000000">24h ≥ $1M</option></select>
+        <select id="fTier" aria-label="Pool tier"><option value="">any tier</option><option value="green,yellow">green or yellow</option><option value="green">green only</option></select>
+      </div></div>
+    </div>
   </header>
+  <section id="facts" aria-live="polite"></section>
 
-  <div class="panel controls">
-    <div><label for="chain">Chain</label><select id="chain"></select></div>
-    <div class="poolsel"><label for="pool">Pool</label><select id="pool"><option>Loading…</option></select></div>
-    <div><label for="amount">Amount, $</label><input id="amount" type="number" min="1" step="any" value="1000"></div>
-    <div><label>I hold</label><div class="seg" id="have"></div></div>
-    <div><label for="count">Bins</label><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>
-  </div>
-  <div class="panel controls second">
-    <div><label for="strategy">Strategy</label><select id="strategy"></select></div>
-    <div><label>Markout window · horizon</label><div style="display:flex;gap:6px"><select id="window"></select><select id="horizon"></select></div></div>
-    <div><label>Pool filter: TVL · 24h volume · tier</label><div style="display:flex;gap:6px">
-      <select id="fTvl" title="Minimum TVL"><option value="0">Any TVL</option><option value="10000">TVL ≥ $10K</option><option value="100000">≥ $100K</option><option value="1000000">≥ $1M</option></select>
-      <select id="fVol" title="Minimum 24h volume"><option value="0">Any volume</option><option value="1">24h vol &gt; 0</option><option value="100000">≥ $100K</option><option value="1000000">≥ $1M</option></select>
-      <select id="fTier" title="Pool tier"><option value="">All tiers</option><option value="green,yellow">Green + yellow</option><option value="green">Green only</option></select>
-    </div></div>
-    <div class="hint" id="stratHint"></div>
-  </div>
-  <div class="status" id="status"></div>
+  <div class="main">
+    <section aria-labelledby="ladder-title">
+      <h2 class="sr" id="ladder-title">Bins by price</h2>
+      <div class="ladder-head" id="ladderHead"><span>≈ Price</span><span>Liquidity, your orders</span><span>Markout</span><span>24h</span><span></span></div>
+      <ol class="ladder" id="ladder"><li class="empty" style="padding:12px 8px">Loading bins…</li></ol>
+      <div class="key" id="key"></div>
+      <div class="detail" id="detail" aria-live="polite">Select a bin to see its numbers.</div>
+    </section>
 
-  <div class="grid">
-    <div class="panel" id="poolcard"><div class="empty">Pick a pool.</div></div>
-    <div class="panel plan" id="plan"><div class="empty">Your plan appears here.</div></div>
-    <div class="panel tablebox"><h2>All bins</h2><div id="table"></div></div>
+    <aside class="ticket" aria-labelledby="ticket-title">
+      <h2 id="ticket-title">Your plan</h2>
+      <label class="sr" for="amount">Amount in dollars</label>
+      <div class="amount"><span>$</span><input id="amount" type="number" min="1" step="any" value="1000" inputmode="decimal" name="amount" autocomplete="off"></div>
+      <div class="seg" id="have" role="group" aria-label="Token you hold"></div>
+      <fieldset>
+        <legend>How to split it</legend>
+        <div class="shapes" id="strategy"></div>
+        <p class="hint" id="stratHint"></p>
+      </fieldset>
+      <div class="row3">
+        <label class="field"><span>Bins</span><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+        <label class="field"><span>Window</span><select id="window"></select></label>
+        <label class="field"><span>Horizon</span><select id="horizon"></select></label>
+      </div>
+      <div class="result" id="plan"><div class="empty">Working out your plan…</div></div>
+      <div class="status" id="status" aria-live="polite"></div>
+    </aside>
   </div>
 
-  <details class="panel explain" id="explain">
+  <details id="tableBox">
+    <summary>Every bin as a table</summary>
+    <div class="tablewrap" id="table"></div>
+  </details>
+
+  <details class="explain" id="explain">
     <summary>How to read these numbers: APR, markout, trading PnL</summary>
-    <p><b>Markout APR</b> is what the bins kept from each swap, checked against the pool's reference price a few minutes later
+    <p><b>Markout APR</b> is what the bins kept from each swap, checked against the pool’s reference price a few minutes later
       (the horizon: 1, 5 or 30 minutes). It counts the spread and whether the trade was worth taking. Positive means traders paid you;
       negative means they knew the price was about to move and picked you off.</p>
     <p><b>Trading PnL</b> compares what you hold now with simply holding the tokens you deposited, at today's prices. Every trade
       changes your token mix, so when the asset keeps moving after the horizon, trading PnL can be negative while markout is positive.</p>
-    <p><b>Pool APR</b> in the Metric list is the pool's markout APR over a window. None of these is a forecast.</p>
+    <p><b>Pool APR</b> in the Metric list is the pool’s markout APR over a window. None of these is a forecast.</p>
     <p id="explainExample"></p>
-    <p>This tool scores bins on markout over the window you pick plus the last 24 hours, and subtracts a quarter of a negative trading PnL,
+    <p>Bin Picker scores bins on markout over the window you pick plus the last 24 hours, minus a quarter of a negative trading PnL,
       so bins that earn the spread but keep ending up on the wrong side of the move rank lower.</p>
   </details>
 
   <footer>
-    Data: Metric public API (per-bin analytics). Score = 0.6 × markout APR over the chosen window + 0.4 × the last 24h, minus a quarter of a negative trading-PnL APR; losing, stale and thin bins are skipped.
-    Markout is a past measurement, not a forecast. Bins move with the pool: a bin above the active one holds token0, below holds token1, and they flip as the pool trades.
-    Not affiliated with Metric. Providing liquidity can lose money; check the pool's tier first.
+    Read-only: Bin Picker never connects a wallet or asks for a signature. Data from the Metric public API. Markout is a past
+    measurement, not a forecast; providing liquidity can lose money. Not affiliated with Metric.
+    <a href="https://github.com/Roprero/metric-bin-picker">Source</a>
   </footer>
 </div>
 
@@ -138,18 +238,24 @@ footer { color: var(--faint); font-size: 12px; margin-top: 28px; line-height: 1.
 "use strict";
 const BP = window.BinPicker;
 const $ = (id) => document.getElementById(id);
-const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m", sort: { key: "bin", dir: 1 } };
+const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m", sort: { key: "bin", dir: -1 }, selected: null };
 const winLabel = () => state.window === "all" ? "all time" : state.window;
 
-const fmtUsd = (v) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(2)}`;
-const fmtPct = (bps) => bps === null || bps === undefined ? "—" : `${(bps / 100).toFixed(1)}%`;
+const usdFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 });
+const usdFine = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+const fmtUsd = (v) => (Math.abs(v || 0) < 1000 ? usdFine : usdFmt).format(v || 0);
+const fmtPct = (bps) => bps === null || bps === undefined ? "–" : `${(bps / 100).toFixed(1)}%`;
 const cls = (bps) => bps === null || bps === undefined ? "" : bps >= 0 ? "pos" : "neg";
-const fmtDev = (e) => e ? `${e[0] >= 0 ? "+" : ""}${e[0].toFixed(5)}…${e[1] >= 0 ? "+" : ""}${e[1].toFixed(5)}%` : "";
-const sym = (side) => side === "token0" ? state.meta.token0Symbol : side === "token1" ? state.meta.token1Symbol : "both";
-const fmtPrice = (v) => v === null || v === undefined ? "—" : v >= 1000 ? v.toFixed(2) : v.toPrecision(7);
-const fmtRange = (r) => r ? `${fmtPrice(r[0])}–${fmtPrice(r[1])}` : "—";
+const fmtDev = (e) => e ? `${e[0] >= 0 ? "+" : ""}${e[0].toFixed(5)}% to ${e[1] >= 0 ? "+" : ""}${e[1].toFixed(5)}%` : "";
+const fmtPrice = (v) => v === null || v === undefined ? "–" : v >= 1000 ? v.toFixed(2) : v.toPrecision(7);
+const fmtRange = (r) => r ? `${fmtPrice(r[0])} to ${fmtPrice(r[1])}` : "–";
 const fmtShare = (x) => x >= 0.01 ? `${(x * 100).toFixed(1)}%` : `${(x * 100).toFixed(3)}%`;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const tokenOf = (where) => where === "token0" ? state.meta.token0Symbol : where === "token1" ? state.meta.token1Symbol : `${state.meta.token0Symbol} and ${state.meta.token1Symbol}`;
+
+// Little bar glyphs that show the shape of each split; the price sits at the left for the nearest-first strategies.
+const GLYPHS = { score: [6, 9, 4, 7, 3], max: [10, 6, 6, 3, 2], flat: [6, 6, 6, 6, 6], volume: [4, 8, 10, 7, 3], spot: [7, 7, 7, 0, 0], curve: [10, 6, 4, 3, 2], bidask: [2, 3, 4, 6, 10] };
+const glyph = (k) => `<svg viewBox="0 0 44 18" aria-hidden="true">${GLYPHS[k].map((h, i) => `<rect x="${2 + i * 8.4}" y="${17 - h * 1.6}" width="6" height="${Math.max(h * 1.6, 0.6)}" fill="#8EA3B5"/>`).join("")}</svg>`;
 
 function save() {
   const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon, ft: $("fTvl").value, fv: $("fVol").value, fr: $("fTier").value });
@@ -162,7 +268,7 @@ function restore() {
   if (p.get("chain")) state.chain = Number(p.get("chain"));
   if (p.get("pool")) state.pool = p.get("pool");
   if (p.get("amt")) $("amount").value = p.get("amt");
-  if (p.get("have")) state.have = p.get("have");
+  if (["token0", "token1", "both"].includes(p.get("have"))) state.have = p.get("have");
   if (p.get("n")) $("count").value = p.get("n");
   if (BP.STRATEGIES[p.get("s")]) state.strategy = p.get("s");
   if (BP.WINDOWS.includes(p.get("w"))) state.window = p.get("w");
@@ -173,19 +279,21 @@ function restore() {
 }
 
 function renderSettings() {
-  $("strategy").innerHTML = Object.entries(BP.STRATEGIES).map(([k, s]) => `<option value="${k}">${esc(s.label)}</option>`).join("");
-  $("window").innerHTML = BP.WINDOWS.map((w) => `<option value="${w}">${w === "all" ? "All" : w}</option>`).join("");
+  $("strategy").innerHTML = Object.entries(BP.STRATEGIES).map(([k, s]) =>
+    `<label class="shape"><input type="radio" name="strategy" value="${k}" ${k === state.strategy ? "checked" : ""}>${glyph(k)}${esc(s.label)}</label>`).join("");
+  $("window").innerHTML = BP.WINDOWS.map((w) => `<option value="${w}">${w === "all" ? "all time" : w}</option>`).join("");
   $("horizon").innerHTML = BP.HORIZONS.map((h) => `<option value="${h}">${h}</option>`).join("");
-  $("strategy").value = state.strategy; $("window").value = state.window; $("horizon").value = state.horizon;
+  $("window").value = state.window; $("horizon").value = state.horizon;
   $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint;
 }
 
 function setStatus(t) { $("status").textContent = t; }
 
 // The three chains Metric serves today: shown at once, then replaced by the API's list when it arrives.
-const KNOWN_CHAINS = [{ chainId: 1, name: "ethereum" }, { chainId: 56, name: "BSC" }, { chainId: 4663, name: "Robinhood" }];
+const CHAIN_NAMES = { 1: "Ethereum", 56: "BNB Chain", 4663: "Robinhood" };
+const KNOWN_CHAINS = Object.entries(CHAIN_NAMES).map(([chainId, name]) => ({ chainId: Number(chainId), name }));
 function renderChains(chains) {
-  $("chain").innerHTML = chains.map((c) => `<option value="${c.chainId}">${esc(c.name)}</option>`).join("");
+  $("chain").innerHTML = chains.map((c) => `<option value="${c.chainId}">${esc(CHAIN_NAMES[c.chainId] || c.name)}</option>`).join("");
   $("chain").value = String(state.chain);
 }
 async function loadChains() { renderChains(await BP.api.chains()); }
@@ -198,10 +306,8 @@ function prefetchWindows() {
 }
 
 async function loadPools() {
-  setStatus("Loading pools…");
   state.allPools = await BP.api.pools(state.chain);
   applyPoolFilter();
-  setStatus("");
 }
 
 // Pool list filters asked for in #feedback (min TVL, min 24h volume, tier). Returns true when the selected pool changed.
@@ -210,13 +316,12 @@ function applyPoolFilter() {
   state.pools = BP.filterPools(state.allPools || [], { minTvl: Number($("fTvl").value), minVolume24h: Number($("fVol").value), tiers });
   const opt = (p) => {
     const tier = p.classificationSummary?.tierQualification || "unclassified";
-    return `<option value="${p.poolAddress}">${esc(p.pair)} · ${tier} · TVL ${fmtUsd(p.tvlFiat || 0)} · 24h vol ${fmtUsd(p.volumeByWindow?.["24h"] || 0)} · ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
+    return `<option value="${p.poolAddress}">${esc(p.pair)}, ${tier}, TVL ${fmtUsd(p.tvlFiat || 0)}, 24h ${fmtUsd(p.volumeByWindow?.["24h"] || 0)}, ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
   };
-  $("pool").innerHTML = state.pools.length ? state.pools.map(opt).join("") : `<option value="">No pool matches the filter</option>`;
+  $("pool").innerHTML = state.pools.length ? state.pools.map(opt).join("") : `<option value="">No pool matches these filters</option>`;
   const before = state.pool;
   if (!state.pool || !state.pools.some((p) => p.poolAddress.toLowerCase() === state.pool.toLowerCase())) state.pool = state.pools[0]?.poolAddress || null;
   $("pool").value = state.pools.find((p) => p.poolAddress.toLowerCase() === state.pool?.toLowerCase())?.poolAddress || "";
-  setStatus(`${state.pools.length} of ${(state.allPools || []).length} pools match the filter`);
   return before !== state.pool;
 }
 
@@ -230,18 +335,19 @@ async function loadPool() {
   state.curBin = r.curBin;
   state.reference = r.reference;
   state.rows = r.rows.map((x) => ({ ...x, price: x.priceRange ? x.priceRange[0] : null }));
+  if (!state.rows.some((x) => x.bin === state.selected)) state.selected = null;
   renderHave();
   // performance.now() counts from navigation start, so the first load shows the full time a visitor waited for a plan
   const ms = Math.round(performance.now() - t0);
-  setStatus(`Updated ${new Date().toLocaleTimeString()} · active bin #${state.curBin} · ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
+  setStatus(`Updated ${new Date().toLocaleTimeString()}, active bin #${state.curBin}, ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
   state.firstPlanMs = state.firstPlanMs || Math.round(performance.now());
   render();
 }
 
 function renderHave() {
   const m = state.meta;
-  const opts = [["token0", m.token0Symbol], ["token1", m.token1Symbol], ["both", "Both"]];
-  $("have").innerHTML = opts.map(([v, t]) => `<button data-v="${v}" class="${state.have === v ? "on" : ""}">${esc(t)}</button>`).join("");
+  const opts = [["token0", `I hold ${m.token0Symbol}`], ["token1", `I hold ${m.token1Symbol}`], ["both", "Both"]];
+  $("have").innerHTML = opts.map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="${state.have === v}">${esc(t)}</button>`).join("");
 }
 
 function currentPlan() {
@@ -251,86 +357,154 @@ function currentPlan() {
 function render() {
   if (!state.meta) return;
   const p = currentPlan();
-  renderPool(p); renderChart(p); renderPlan(p); renderTable(p); renderExplain(); save();
+  renderFacts(); renderLadder(p); renderDetail(p); renderTicket(p); renderTable(p); renderExplain(); save();
 }
 
-function renderPool() {
+function renderFacts() {
   const m = state.meta;
   const tier = m.classificationSummary?.tierQualification || "unclassified";
   const mk = m.markoutByWindow?.[state.window]?.byHorizon?.[state.horizon]?.aprBps;
   const warns = BP.poolWarnings(m);
-  if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: `No swaps in the last 24h (market closed or quiet pool). Bins are ranked on ${winLabel()} only.` });
-  $("poolcard").innerHTML = `
-    <div class="poolhead">
-      <div><span class="pair">${esc(m.pair)}</span><span class="badge ${tier}">${tier}</span></div>
-      <a href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open in Metric ↗</a>
+  if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: `No swaps in the last 24h (market closed or a quiet pool). Bins are ranked on ${winLabel()} only.` });
+  $("facts").innerHTML = `
+    <div class="facts">
+      <span><b>${esc(m.pair)}</b> <span class="tier ${tier}">${tier} tier</span></span>
+      <span>TVL <b>${fmtUsd(m.tvlFiat || 0)}</b></span>
+      <span>Volume ${winLabel()} <b>${fmtUsd(m.volumeByWindow?.[state.window] || 0)}</b></span>
+      <span>Pool markout ${state.horizon}, ${winLabel()} <b class="${cls(mk)}">${fmtPct(mk)}</b></span>
+      <span>Reference <b>${state.reference ? "≈ " + fmtPrice(state.reference) : "–"}</b> ${esc(m.token1Symbol)} per ${esc(m.token0Symbol)}</span>
+      <span>Curator <b>${esc(m.adminUsername || "unnamed")}${m.verifiedAdmin ? ", verified" : ""}</b></span>
+      <span>Curator and Metric keep <b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b> of the spread</span>
     </div>
-    <div class="stats">
-      <div><b>${fmtUsd(m.tvlFiat || 0)}</b>TVL</div>
-      <div><b>${fmtUsd(m.volumeByWindow?.[state.window] || 0)}</b>Volume ${winLabel()}</div>
-      <div><b class="${cls(mk)}">${fmtPct(mk)}</b>Pool markout ${state.horizon} · ${winLabel()}</div>
-      <div><b>${state.reference ? "≈ " + fmtPrice(state.reference) : "—"}</b>Reference, ${esc(m.token1Symbol)} per ${esc(m.token0Symbol)}</div>
-      <div><b>${esc(m.adminUsername || "—")}${m.verifiedAdmin ? " ✓" : ""}</b>Curator</div>
-      <div><b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b>Curator + Metric cut</div>
-    </div>
-    ${warns.length ? `<div class="warns">${warns.map((w) => `<div class="warn ${w.level}">${esc(w.text)}</div>`).join("")}</div>` : ""}
-    <div class="chartbox"><svg id="chart" role="img" aria-label="Liquidity per bin, coloured by score"></svg><div class="tip" id="tip"></div></div>
-    <div class="legend">
-      <span><i style="background:var(--accent)"></i>bar height: liquidity · brightness: score</span>
-      <span><i style="background:var(--pick)"></i>picked for you</span>
-      <span><i style="background:#fff"></i>active bin</span>
-      <span><i style="background:var(--bad)"></i>losing (score ≤ 0)</span>
-    </div>`;
+    ${warns.length ? `<div class="warns">${warns.map((w) => `<div class="warn ${w.level === "bad" ? "bad" : ""}">${esc(w.text)}</div>`).join("")}</div>` : ""}`;
 }
 
-function renderChart(plan) {
-  const svg = $("chart"); if (!svg) return;
-  // Show the traded range (plus a few bins of margin), the active bin and the picks; idle tails only add noise.
+// The ladder: the traded range plus a few bins of margin, highest price first, a dashed line where the price is now.
+function renderLadder(plan) {
   const traded = state.rows.filter((r) => r.swaps > 0).map((r) => r.bin);
   const keep = [...traded, state.curBin, ...plan.bins.map((b) => b.bin)];
   const lo = Math.min(...keep) - 3, hi = Math.max(...keep) + 3;
-  const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps > 0)).sort((a, b) => a.bin - b.bin);
-  if (!rows.length) { svg.innerHTML = ""; return; }
-  const W = svg.clientWidth || 700, H = 260, pad = 22, bw = (W - 8) / rows.length;
-  const maxL = Math.max(...rows.map((r) => r.liquidity));
+  const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps > 0 || r.bin === state.curBin)).sort((a, b) => b.bin - a.bin);
+  const maxL = Math.max(1, ...rows.map((r) => r.liquidity));
   const maxS = Math.max(1, ...rows.map((r) => r.score || 0));
-  const picked = new Set(plan.bins.map((b) => b.bin));
+  const maxOrder = Math.max(1, ...plan.bins.map((b) => b.usd));
+  const mine = new Map(plan.bins.map((b) => [b.bin, b]));
+  $("ladderHead").innerHTML = `<span>≈ Price, ${esc(state.meta.token1Symbol)}</span><span>Liquidity, your orders</span><span>${winLabel()}</span><span>24h</span><span></span>`;
   let out = "";
-  rows.forEach((r, k) => {
-    const h = Math.max(2, (r.liquidity / maxL) * (H - pad - 14));
-    const x = 4 + k * bw, y = H - pad - h;
-    let fill;
-    if (!r.eligible && r.score !== null && r.score <= 0 || (r.mkMain !== null && r.mkMain < 0)) fill = "var(--bad)";
-    else if (!r.eligible) fill = "#3a3d42";
-    else fill = `rgba(56,232,216,${0.25 + 0.75 * Math.max(0, r.score) / maxS})`;
-    const stroke = picked.has(r.bin) ? `stroke="var(--pick)" stroke-width="2"` : "";
-    out += `<rect data-bin="${r.bin}" x="${x + 1}" y="${y}" width="${Math.max(1, bw - 2)}" height="${h}" rx="2" fill="${fill}" ${stroke}/>`;
-    if (picked.has(r.bin)) out += `<path d="M${x + bw / 2 - 4},${y - 9} l4,6 l4,-6 z" fill="var(--pick)"/>`;
-    if (r.bin === state.curBin) out += `<line x1="${x + bw / 2}" x2="${x + bw / 2}" y1="6" y2="${H - pad}" stroke="#fff" stroke-dasharray="3,3" opacity="0.7"/>`;
-    if (r.bin % (rows.length > 40 ? 10 : 5) === 0) out += `<text x="${x + bw / 2}" y="${H - 6}" fill="var(--faint)" font-size="10" text-anchor="middle">#${r.bin}</text>`;
+  for (const r of rows) {
+    if (r.bin === state.curBin) {
+      out += `<li class="priceline" aria-label="The pool trades in bin ${r.bin}"><span class="px">${fmtPrice(r.priceRange?.[0])}</span><span class="bar"><span>price is here, bin #${r.bin}</span></span></li>`;
+      continue;
+    }
+    const o = mine.get(r.bin);
+    const losing = r.mkMain !== null && r.mkMain <= 0;
+    const classes = ["rung", r.bin > state.curBin ? "above" : "below", o ? "mine" : "", losing ? "losing" : "", !r.eligible ? "out" : ""].join(" ");
+    const liqW = Math.max(1.5, (r.liquidity / maxL) * 62);
+    const opacity = r.eligible ? 0.3 + 0.7 * Math.max(0, r.score) / maxS : 0.22;
+    const ordW = o ? Math.max(3, (o.usd / maxOrder) * 30) : 0;
+    const flag = losing ? "✕" : !r.eligible ? "–" : "";
+    out += `<li><button type="button" class="${classes}" data-bin="${r.bin}" aria-pressed="${state.selected === r.bin}"
+        aria-label="Bin ${r.bin}${o ? `, your order ${fmtUsd(o.usd)}` : ""}">
+      <span class="px">${fmtPrice(r.priceRange?.[0])}</span>
+      <span class="depth"><span class="liq" style="width:${liqW}%;--o:${opacity.toFixed(2)}"></span>${o
+        ? `<span class="ord" style="--at:${liqW + 1}%;--w:${ordW}%"></span><span class="ordtag" style="--at:${liqW + 1}%;--w:${ordW}%">${fmtUsd(o.usd)}</span>` : ""}</span>
+      <span class="m ${cls(r.mkMain)}">${fmtPct(r.mkMain)}</span>
+      <span class="m day ${cls(r.mkDay)}">${fmtPct(r.mkDay)}</span>
+      <span class="flag" title="${esc(r.reasons.join("; "))}">${flag}</span>
+    </button></li>`;
+  }
+  $("ladder").innerHTML = out || `<li class="empty" style="padding:12px 8px">This pool has no bins with liquidity yet.</li>`;
+  $("key").innerHTML = `
+    <span><i style="background:var(--ask)"></i>bins above the price take ${esc(state.meta.token0Symbol)}</span>
+    <span><i style="background:var(--bid)"></i>below take ${esc(state.meta.token1Symbol)}</span>
+    <span><i style="background:var(--order)"></i>your orders</span>
+    <span><i style="background:repeating-linear-gradient(135deg,var(--loss) 0 3px,transparent 3px 6px)"></i>lost money over ${winLabel()}</span>
+    <span>brighter bar: higher score</span>`;
+}
+
+function renderDetail(plan) {
+  const r = state.rows.find((x) => x.bin === state.selected);
+  if (!r) { $("detail").textContent = "Select a bin to see its numbers."; return; }
+  const o = plan.bins.find((b) => b.bin === r.bin);
+  $("detail").innerHTML = `<h3>Bin #${r.bin}, ${r.bin === state.curBin ? "the active bin" : `takes ${esc(tokenOf(r.side))}`}${o ? `, your order ${fmtUsd(o.usd)}` : ""}</h3>
+    <dl>
+      <div><dt>Price range</dt><dd>≈ ${fmtRange(r.priceRange)}</dd></div>
+      <div><dt>Deviation from reference</dt><dd>${fmtDev(r.edges)}</dd></div>
+      <div><dt>Liquidity</dt><dd>${fmtUsd(r.liquidity)}</dd></div>
+      <div><dt>Volume, ${winLabel()}</dt><dd>${fmtUsd(r.volume)}</dd></div>
+      <div><dt>Swaps, ${winLabel()} and 24h</dt><dd>${r.swaps} and ${r.swaps24}</dd></div>
+      <div><dt>Markout ${state.horizon}, ${winLabel()}</dt><dd class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</dd></div>
+      <div><dt>Markout ${state.horizon}, 24h</dt><dd class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</dd></div>
+      <div><dt>Trading PnL, ${winLabel()}</dt><dd class="${cls(r.pnl)}">${fmtPct(r.pnl)}</dd></div>
+      <div><dt>Score</dt><dd>${r.eligible ? fmtPct(r.score) : `not picked: ${esc(r.reasons.join("; "))}`}</dd></div>
+    </dl>`;
+}
+
+// Closest built-in Metric shape for each strategy; the rest need the bars dragged by hand.
+function shapeHint(plan) {
+  if (plan.bins.length === 1) return "Shape: <b>Single bin</b>.";
+  const preset = { score: "APR pro-rata", volume: "Volume pro-rata", flat: "Flat", spot: "Flat" }[plan.strategy];
+  return preset
+    ? `Shape: <b>${preset}</b>. Metric’s preset weighs by its own 24h numbers, so its shares can differ a little from these; drag bars to match if you want them exact.`
+    : "Shape: drag each bar to the share above. Metric has no preset for this split.";
+}
+
+function renderTicket(plan) {
+  const m = state.meta;
+  if (!plan.bins.length) {
+    const where = state.have === "both" ? "either side" : `the ${tokenOf(state.have)} side`;
+    $("plan").innerHTML = `<div class="empty">No bin on ${esc(where)} earns reliably right now. Try the other token, another window or another pool.</div>`;
+    return;
+  }
+  const near = plan.bins.filter((b) => Math.abs(b.distance) <= 2).length;
+  const down = m.priceProviderStatus !== "healthy" || m.pauseLevel;
+  $("plan").innerHTML = `
+    ${down ? `<div class="warn bad" style="margin-bottom:10px">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Liquidity here earns nothing until it reopens.</div>` : ""}
+    <div class="apr">${fmtPct(plan.aprBps)}<small>expected APR</small></div>
+    <div class="week">About ${fmtUsd(plan.weeklyUsd)} a week, after your own deposit dilutes each bin</div>
+    <ol class="orders">
+      ${plan.bins.map((b) => `<li>
+        <span class="what">Bin #${b.bin}, ${esc(tokenOf(b.side))}</span><span class="usd">${fmtUsd(b.usd)}</span>
+        <span class="sub">≈ ${fmtRange(b.priceRange)}, ${fmtPct(b.effAprBps)} expected, you’d own ${fmtShare(b.binShare)} of the bin</span>
+      </li>`).join("")}
+    </ol>
+    <ol class="steps">
+      <li>Open the pool in Metric and press <b>Clear</b>.</li>
+      <li>Click bins <b>${plan.bins.map((b) => "#" + b.bin).join(", ")}</b>.</li>
+      <li>${shapeHint(plan)}</li>
+      <li>Check the other token reads <b>0</b>. If it doesn’t, the pool moved and a bin changed side: refresh here.</li>
+    </ol>
+    ${near ? `<div class="warn" style="margin-top:10px">${near === 1 ? "One bin sits" : `${near} bins sit`} within 2 of the active bin. They earn the most and change side the fastest.</div>` : ""}
+    <a class="go" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open pool in Metric</a>
+    <div class="links"><button type="button" id="refresh">Refresh data</button><button type="button" id="copy">Copy link to this plan</button></div>`;
+  $("refresh").onclick = () => { BP.clearCache(); loadPool().then(prefetchWindows).catch(fail); };
+  $("copy").onclick = () => navigator.clipboard?.writeText(location.href).then(() => setStatus("Link copied."), () => setStatus(location.href));
+}
+
+const COLS = () => [
+  ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Takes"], ["swaps", `Swaps, ${winLabel()}`], ["volume", `Volume, ${winLabel()}`], ["liquidity", "Liquidity"],
+  ["mkMain", `Markout ${state.horizon}, ${winLabel()}`], ["mkDay", `Markout ${state.horizon}, 24h`], ["pnl", `Trading PnL, ${winLabel()}`], ["score", "Score"],
+];
+function renderTable(plan) {
+  const mine = new Set(plan.bins.map((b) => b.bin));
+  const rows = state.rows.filter((r) => r.liquidity > 1 || r.swaps > 0);
+  const { key, dir } = state.sort;
+  rows.sort((a, b) => ((a[key] ?? -Infinity) > (b[key] ?? -Infinity) ? 1 : (a[key] ?? -Infinity) < (b[key] ?? -Infinity) ? -1 : 0) * dir);
+  const tokenClass = { token0: "t0", token1: "t1", both: "" };
+  $("table").innerHTML = `<table><thead><tr>${COLS().map(([k, t]) => `<th data-k="${k}" aria-sort="${key === k ? (dir > 0 ? "ascending" : "descending") : "none"}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map((r) => `<tr class="${mine.has(r.bin) ? "mine" : r.bin === state.curBin ? "now" : !r.eligible ? "out" : ""}" title="${esc(r.reasons.join("; "))}">
+      <td>#${r.bin}${r.bin === state.curBin ? ", active" : ""}</td>
+      <td class="num">${r.priceRange ? fmtPrice(r.priceRange[0]) : "–"}</td>
+      <td class="${tokenClass[r.side]}">${esc(tokenOf(r.side))}</td>
+      <td>${r.swaps}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
+      <td class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</td><td class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</td>
+      <td class="${cls(r.pnl)}">${fmtPct(r.pnl)}</td><td>${r.eligible ? fmtPct(r.score) : "–"}</td></tr>`).join("")}
+  </tbody></table>`;
+  $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
+    const k = th.dataset.k;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : -1 };
+    renderTable(currentPlan());
   });
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.innerHTML = out;
-  const tip = $("tip");
-  svg.onmousemove = (ev) => {
-    const bin = ev.target.getAttribute && ev.target.getAttribute("data-bin");
-    if (bin === null) { tip.style.display = "none"; return; }
-    const r = state.rows.find((x) => x.bin === Number(bin));
-    tip.innerHTML = `<div style="margin-bottom:6px"><b>#${r.bin}</b> <span style="color:var(--muted)">${fmtDev(r.edges)}</span></div>
-      <div class="r"><span>≈ Price</span><span>${fmtRange(r.priceRange)}</span></div>
-      <div class="r"><span>Holds</span><span>${esc(sym(r.side))}</span></div>
-      <div class="r"><span>Liquidity</span><span>${fmtUsd(r.liquidity)}</span></div>
-      <div class="r"><span>Volume ${winLabel()}</span><span>${fmtUsd(r.volume)}</span></div>
-      <div class="r"><span>Swaps ${winLabel()} / 24h</span><span>${r.swaps} / ${r.swaps24}</span></div>
-      <div class="r"><span>Markout ${state.horizon}: ${winLabel()} / 24h</span><span><span class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</span> / <span class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</span></span></div>
-      <div class="r"><span>Trading PnL ${winLabel()}</span><span class="${cls(r.pnl)}">${fmtPct(r.pnl)}</span></div>
-      <div class="r"><span>Score</span><span>${r.eligible ? fmtPct(r.score) : esc(r.reasons[0])}</span></div>`;
-    const box = svg.parentElement.getBoundingClientRect();
-    tip.style.display = "block";
-    tip.style.left = `${Math.min(ev.clientX - box.left + 12, box.width - 230)}px`;
-    tip.style.top = `${Math.max(0, ev.clientY - box.top - 150)}px`;
-  };
-  svg.onmouseleave = () => { tip.style.display = "none"; };
 }
 
 // A live example for the explainer: a bin in this pool where markout and trading PnL point in different directions.
@@ -341,90 +515,22 @@ function renderExplain() {
     : "";
 }
 
-// Closest built-in Metric shape for each strategy; the rest need the bars dragged by hand.
-function shapeHint(plan) {
-  if (plan.bins.length === 1) return "Shape: <b>Single bin</b>.";
-  const preset = { score: "APR pro-rata", volume: "Volume pro-rata", flat: "Flat", spot: "Flat" }[plan.strategy];
-  return preset
-    ? `Shape: <b>${preset}</b> (Metric's preset weighs by its own 24h numbers, so shares can differ a little), or drag bars to the shares above.`
-    : "Shape: drag each bar to the share above. Metric has no preset for this split.";
-}
+function fail(e) { console.error(e); setStatus(`Couldn’t load data from Metric (${e.message}). Check your connection and press Refresh data.`); }
 
-function renderPlan(plan) {
-  const m = state.meta;
-  if (!plan.bins.length) {
-    const side = state.have === "both" ? "either side" : `the ${sym(state.have)} side`;
-    $("plan").innerHTML = `<h2>Your plan</h2><div class="empty">No bin on ${esc(side)} passes the filters right now. Try the other token or a different pool.</div>`;
-    return;
-  }
-  const near = plan.bins.filter((b) => Math.abs(b.distance) <= 2).length;
-  const down = m.priceProviderStatus !== "healthy" || m.pauseLevel;
-  $("plan").innerHTML = `
-    <h2>Your plan</h2>
-    ${down ? `<div class="warn bad" style="margin-bottom:10px">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Your liquidity would earn nothing until it reopens.</div>` : ""}
-    <div class="big ${cls(plan.aprBps)}">${fmtPct(plan.aprBps)}</div>
-    <div style="color:var(--muted)">expected APR after your own dilution · ≈ ${fmtUsd(plan.weeklyUsd)} / week</div>
-    <div style="margin-top:12px">
-      ${plan.bins.map((b) => `<div class="planrow">
-        <span class="idx">#${b.bin}</span>
-        <span>${(b.share * 100).toFixed(0)}% <span class="dev">· ${esc(sym(b.side))} · ≈ ${fmtRange(b.priceRange)}</span><br><span class="dev">${fmtDev(b.edges)}</span><br><span class="dev">score ${fmtPct(b.score)} · 24h <span class="${cls(b.mkDay)}">${fmtPct(b.mkDay)}</span> · you'd own ${fmtShare(b.binShare)} of the bin</span></span>
-        <span class="usd">${fmtUsd(b.usd)}<small>${fmtPct(b.effAprBps)}</small></span>
-      </div>`).join("")}
-    </div>
-    <ol class="steps">
-      <li>Open the pool in Metric and press <b>Clear</b>.</li>
-      <li>Click bins <b>${plan.bins.map((b) => "#" + b.bin).join(", ")}</b> (hover a bar to see its number).</li>
-      <li>${shapeHint(plan)}</li>
-      <li>Check the other token reads <b>0</b>: if not, the pool moved and a bin flipped side. Refresh here.</li>
-    </ol>
-    ${near ? `<div class="warn warn" style="margin-top:10px">${near} bin(s) sit within 2 of the active bin #${state.curBin}. They earn the most but flip side fastest.</div>` : ""}
-    <a class="btn" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open pool in Metric ↗</a>
-    <div style="margin-top:10px"><a href="#" id="refresh">↻ Refresh data</a> · <a href="#" id="copy">Copy plan</a></div>`;
-  $("refresh").onclick = (e) => { e.preventDefault(); loadPool().catch(fail); };
-  $("copy").onclick = (e) => {
-    e.preventDefault();
-    const txt = `${m.pair} (${m.poolAddress}) on chain ${state.chain}: ` + plan.bins.map((b) => `#${b.bin} ${fmtUsd(b.usd)}`).join(", ") + ` · est. APR ${fmtPct(plan.aprBps)} · ${location.href}`;
-    navigator.clipboard?.writeText(txt).then(() => setStatus("Plan copied."), () => setStatus(txt));
-  };
-}
-
-const COLS = () => [
-  ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Holds"], ["swaps", `Swaps ${winLabel()}`], ["volume", `Volume ${winLabel()}`], ["liquidity", "Liquidity"],
-  ["mkMain", `Markout ${state.horizon} · ${winLabel()}`], ["mkDay", `Markout ${state.horizon} · 24h`], ["pnl", `PnL ${winLabel()}`], ["score", "Score"],
-];
-function renderTable(plan) {
-  const picked = new Set(plan.bins.map((b) => b.bin));
-  const rows = state.rows.filter((r) => r.liquidity > 1 || r.swaps > 0);
-  const { key, dir } = state.sort;
-  rows.sort((a, b) => ((a[key] ?? -Infinity) > (b[key] ?? -Infinity) ? 1 : (a[key] ?? -Infinity) < (b[key] ?? -Infinity) ? -1 : 0) * dir);
-  const sideCls = { token0: "side0", token1: "side1", both: "sideb" };
-  $("table").innerHTML = `<table><thead><tr>${COLS().map(([k, t]) => `<th data-k="${k}">${t}${key === k ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("")}</tr></thead><tbody>
-    ${rows.map((r) => `<tr class="${picked.has(r.bin) ? "pick" : r.bin === state.curBin ? "cur" : !r.eligible ? "dim" : ""}" title="${esc(r.reasons.join("; "))}">
-      <td>#${r.bin}${r.bin === state.curBin ? " · active" : ""}</td>
-      <td>${r.priceRange ? fmtPrice(r.priceRange[0]) : "—"}</td>
-      <td class="${sideCls[r.side]}">${esc(sym(r.side))}</td>
-      <td>${r.swaps}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
-      <td class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</td><td class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</td>
-      <td class="${cls(r.pnl)}">${fmtPct(r.pnl)}</td><td>${r.eligible ? fmtPct(r.score) : "—"}</td></tr>`).join("")}
-  </tbody></table>`;
-  $("table").querySelectorAll("th").forEach((th) => th.onclick = () => {
-    const k = th.dataset.k;
-    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : k === "bin" ? 1 : -1 };
-    renderTable(currentPlan());
-  });
-}
-
-function fail(e) { console.error(e); setStatus(`Error: ${e.message}. The Metric API may be busy; try again.`); }
-
-for (const id of ["fTvl", "fVol", "fTier"]) $(id).onchange = () => { if (applyPoolFilter()) loadPool().catch(fail); else save(); };
-$("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; await loadPools(); await loadPool(); };
+for (const id of ["fTvl", "fVol", "fTier"]) $(id).onchange = () => { if (applyPoolFilter()) loadPool().then(prefetchWindows).catch(fail); else save(); };
+$("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; try { await loadPools(); await loadPool(); prefetchWindows(); } catch (e) { fail(e); } };
 $("pool").onchange = () => { state.pool = $("pool").value; loadPool().then(prefetchWindows).catch(fail); };
 $("amount").oninput = render; $("count").onchange = render;
-$("have").onclick = (e) => { const v = e.target.dataset?.v; if (!v) return; state.have = v; renderHave(); render(); };
-$("strategy").onchange = () => { state.strategy = $("strategy").value; $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint; render(); };
+$("have").onclick = (e) => { const v = e.target.closest("button")?.dataset.v; if (!v) return; state.have = v; renderHave(); render(); };
+$("strategy").onchange = (e) => { state.strategy = e.target.value; $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint; render(); };
 $("window").onchange = () => { state.window = $("window").value; loadPool().catch(fail); };
 $("horizon").onchange = () => { state.horizon = $("horizon").value; loadPool().catch(fail); };
-window.addEventListener("resize", () => state.meta && renderChart(currentPlan()));
+$("ladder").onclick = (e) => {
+  const b = e.target.closest("button[data-bin]"); if (!b) return;
+  const bin = Number(b.dataset.bin);
+  state.selected = state.selected === bin ? null : bin;
+  const p = currentPlan(); renderLadder(p); renderDetail(p);
+};
 
 (async () => {
   restore();
