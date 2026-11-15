@@ -205,14 +205,20 @@
   // Every call to the API costs ~0.3 s (the backend is in Tokyo and Cloudflare does not cache it), so keep responses for a
   // minute and share requests already in flight: switching the horizon or strategy then costs no network at all.
   const CACHE_TTL_MS = 60000;
+  const FETCH_TIMEOUT_MS = 20000;
   const cache = new Map();
   function getJson(url) {
     const hit = cache.get(url);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.promise;
-    const promise = fetch(url, { headers: { Accept: "application/json" } }).then((r) => {
+    // A stalled response (some networks freeze Cloudflare traffic mid-body) must fail loudly, not spin forever.
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS) : null;
+    const promise = fetch(url, { headers: { Accept: "application/json" }, signal: ctl?.signal }).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${url}`);
       return r.json();
-    });
+    }).catch((e) => {
+      throw e && e.name === "AbortError" ? Object.assign(new Error("timeout"), { timeout: true }) : e;
+    }).finally(() => clearTimeout(timer));
     cache.set(url, { at: Date.now(), promise });
     promise.catch(() => cache.delete(url)); // never cache a failure
     return promise;

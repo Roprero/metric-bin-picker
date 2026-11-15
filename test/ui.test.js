@@ -51,7 +51,7 @@ const SCENARIOS = [
       const bins = planBins(h), cur = Number((txt.match(/active bin #(-?\d+)/) || [])[1]);
       if (bins.length < 1 || bins.length > 3) throw new Error(`plan bins: ${bins}`);
       if (!bins.every((b) => b > cur + 1)) throw new Error(`bins ${bins} not above active #${cur}`);
-      for (const s of ["Your plan", "expected APR", "≈ Price", "you'd own", "Reference"]) if (!txt.includes(s)) throw new Error(`missing "${s}"`);
+      for (const s of ["Your plan", "expected APR", "≈ Price", "you’d own", "Reference"]) if (!txt.includes(s)) throw new Error(`missing "${s}"`);
     },
   },
   {
@@ -78,9 +78,9 @@ const SCENARIOS = [
     name: "pool filter green only on BSC: every listed pool is green",
     q: `?chain=56&fr=green`,
     check: (h, txt) => {
-      const opts = [...h.matchAll(/<option value="0x[^"]+">([^<]+)<\/option>/g)].map((m) => m[1]);
+      const opts = [...h.matchAll(/data-pool="0x[^"]+" data-tier="(\w+)"/g)].map((m) => m[1]);
       if (!opts.length && !txt.includes("No pool matches")) throw new Error("no pools and no empty-state message");
-      const bad = opts.filter((o) => !o.includes(", green,"));
+      const bad = opts.filter((o) => o !== "green");
       if (bad.length) throw new Error(`non-green pools listed: ${bad.slice(0, 2)}`);
     },
   },
@@ -108,6 +108,24 @@ const SCENARIOS = [
     name: "explainer is on the page",
     q: `?chain=1&pool=${USDC_USDT}`,
     check: (h, txt) => { if (!txt.includes("How to read these numbers")) throw new Error("explainer missing"); },
+  },
+  {
+    name: "wizard: four steps in the rail, a shared plan link opens on the plan with a share card",
+    q: `?chain=1&pool=${USDC_USDT}&amt=617&have=token0&n=3`,
+    check: (h) => {
+      const steps = (h.match(/data-go="[1-4]" class="[^"]*"/g) || []).length;
+      if (steps < 4) throw new Error(`${steps} steps in the rail`);
+      if (!/<section class="step" data-step="4"(?![^>]*hidden)/.test(h)) throw new Error("plan step is not the one shown");
+      for (const id of ["postX", "saveCard", "copyCard"]) if (!h.includes(`id="${id}"`)) throw new Error(`no ${id}`);
+    },
+  },
+  {
+    name: "first visit starts at step 1 with a pool list",
+    q: `?chain=1&st=1`,
+    check: (h) => {
+      if (!/<section class="step" data-step="1"(?![^>]*hidden)/.test(h)) throw new Error("step 1 not shown");
+      if ((h.match(/class="poolcard"/g) || []).length < 3) throw new Error("pool cards missing");
+    },
   },
 ];
 

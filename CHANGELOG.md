@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+- Four steps instead of one crowded screen: pool, your side and amount, how to split, your plan. Every step shows its
+  choice in the rail and can be reopened; a shared link opens straight on the plan.
+- The ladder stays in view beside every step: your side lights up while you choose a token, and your orders pour into
+  their bins when the plan changes. The plan's APR counts to its new value.
+- Pools are cards with a tier dot, TVL and 24h volume, plus a search box.
+- Share card: a picture of the plan for X, with Post on X, Download and Copy.
+- A stalled request now fails after 20 seconds with a clear message and a Try again button, instead of loading forever
+  (some networks freeze traffic to Cloudflare, which hosts the Metric API).
+- Two more browser tests: the wizard opens on the plan from a shared link, and on the pool list on a first visit.
+
 ## 0.5.0
 
 - Redesign as an order-book ladder: one row per bin by price, the current price as a line, your plan as yellow orders.

@@ -4,208 +4,299 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#0F1A24">
+<meta name="theme-color" content="#0D1520">
 <title>Bin Picker for Metric</title>
-<meta name="description" content="Which Metric bins should hold your liquidity? A price ladder of every bin you can fund, ranked by what it actually earned, with a ready plan for the token you hold.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='8' height='2.5' fill='%237AA9E8'/><rect x='2' y='6.75' width='12' height='2.5' fill='%23F2C14E'/><rect x='2' y='11.5' width='6' height='2.5' fill='%235CC8A8'/></svg>">
+<meta name="description" content="Which Metric bins should hold your liquidity? Pick a pool, your token and an amount: Bin Picker ranks every bin you can fund by what it actually earned and hands you a ready plan.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='8' height='2.5' fill='%2388B4F0'/><rect x='2' y='6.75' width='12' height='2.5' fill='%23F0BE4F'/><rect x='2' y='11.5' width='6' height='2.5' fill='%2367D0AE'/></svg>">
 <link rel="preconnect" href="https://api.metric.xyz" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --ink: #0F1A24;      /* page */
-  --slate: #16242F;    /* surfaces */
-  --well: #1C2D3A;     /* inputs, hover */
-  --rule: #24384A;
-  --paper: #DCE6EE;    /* text */
-  --fog: #8EA3B5;      /* secondary text */
-  --dim: #56697A;
-  --ask: #7AA9E8;      /* token0 side: bins above the price */
-  --bid: #5CC8A8;      /* token1 side: bins below the price */
-  --order: #F2C14E;    /* your liquidity, the one loud colour on the page */
-  --loss: #E8696B;
-  --warn: #E7B45A;
+  --night: #0D1520;    /* page */
+  --deck: #132030;     /* panels */
+  --well: #1A2B3D;     /* inputs, hover */
+  --rule: #233A50;
+  --paper: #E3EBF2;    /* text */
+  --fog: #93A7B9;      /* secondary text */
+  --dim: #5A6E80;
+  --ask: #88B4F0;      /* bins above the price: they take token0 */
+  --bid: #67D0AE;      /* bins below the price: they take token1 */
+  --brass: #F0BE4F;    /* your orders, the one loud colour */
+  --loss: #EE7A76;
+  --warn: #E8B65C;
   --ui: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --num: "IBM Plex Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(.2, .8, .2, 1);
 }
 * { box-sizing: border-box; }
-html { background: var(--ink); }
-body { margin: 0; color: var(--paper); font: 16px/1.4 var(--ui); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+html { background: var(--night); }
+body { margin: 0; color: var(--paper); font: 17px/1.45 var(--ui); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
 a { color: var(--ask); }
 button, input, select { font: inherit; color: inherit; touch-action: manipulation; }
-.skip { position: absolute; left: 8px; top: -40px; padding: 6px 10px; background: var(--order); color: var(--ink); border-radius: 4px; z-index: 2; }
+button { cursor: pointer; }
+.skip { position: absolute; left: 8px; top: -44px; padding: 6px 10px; background: var(--brass); color: var(--night); border-radius: 4px; z-index: 5; }
 .skip:focus { top: 8px; }
-:focus-visible { outline: 2px solid var(--order); outline-offset: 2px; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 56px; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 22px 18px 60px; }
 
-/* top bar: what this is and which pool */
-.top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 28px; align-items: end; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
-.brand h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; }
-.brand p { margin: 6px 0 0; color: var(--fog); }
-.poolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; justify-content: flex-end; }
+/* masthead: what this is, which chain */
+.mast { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 28px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.brand h1 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1; letter-spacing: -0.01em; }
+.brand p { margin: 3px 0 0; color: var(--fog); font-size: 16px; }
+.chains { display: flex; gap: 4px; padding: 4px; background: var(--deck); border-radius: 999px; }
+.chains button { border: 0; background: none; color: var(--fog); padding: 6px 14px; border-radius: 999px; font-weight: 500; }
+.chains button[aria-pressed="true"] { background: var(--paper); color: var(--night); font-weight: 600; }
+
+/* the step rail: a real sequence, so it is numbered */
+.rail { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 22px 0 0; padding: 0; counter-reset: step; }
+.rail li { min-width: 0; }
+.rail button { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 0 10px; align-items: center; text-align: left; background: none; border: 0;
+  border-top: 2px solid var(--rule); padding: 10px 8px 4px 0; color: var(--fog); }
+.rail .n { grid-row: span 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--rule); font-weight: 600; font-size: 15px; }
+.rail .t { font-weight: 600; font-size: 16px; color: var(--paper); }
+.rail .v { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail button.done { border-top-color: var(--fog); }
+.rail button.done .n { background: var(--well); border-color: var(--fog); color: var(--paper); }
+.rail button[aria-current="step"] { border-top-color: var(--brass); }
+.rail button[aria-current="step"] .n { background: var(--brass); border-color: var(--brass); color: var(--night); }
+.rail button:disabled { cursor: default; opacity: 0.55; }
+
+/* desk: the step on the left, the ladder on the right */
+.desk { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 34px; margin-top: 22px; align-items: start; }
+.step { animation: enter 0.35s var(--ease); }
+@keyframes enter { from { opacity: 0; transform: translateY(6px); } }
+.step h2 { margin: 0 0 4px; font-size: 26px; font-weight: 700; line-height: 1.1; }
+.step .lede { margin: 0 0 16px; color: var(--fog); max-width: 44ch; }
+.nav { display: flex; gap: 10px; margin-top: 20px; }
+.btn { border: 1px solid var(--rule); background: var(--well); color: var(--paper); padding: 10px 18px; border-radius: 8px; font-weight: 600; }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: var(--night); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--ask); text-decoration: underline; }
+
+/* step 1: pools */
+.search { width: 100%; background: var(--well); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.filters select { background: var(--deck); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; font-size: 15px; color: var(--paper); min-height: 32px; }
+.pools { list-style: none; margin: 12px 0 0; padding: 0; max-height: 470px; overflow: auto; border-top: 1px solid var(--rule); }
+.poolcard { width: 100%; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--rule); padding: 9px 6px; }
+.poolcard:hover { background: var(--deck); }
+.poolcard[aria-pressed="true"] { background: var(--well); box-shadow: inset 3px 0 0 var(--brass); }
+.poolcard .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fog); }
+.poolcard .pair { font-weight: 600; font-size: 18px; }
+.poolcard .tvl { font-family: var(--num); font-size: 14px; color: var(--paper); text-align: right; }
+.poolcard .meta { grid-column: 2 / 4; color: var(--fog); font-size: 15px; }
+.dot.green, .pill.green { background: var(--bid); } .dot.yellow, .pill.yellow { background: var(--warn); } .dot.red, .pill.red { background: var(--loss); }
+.empty { color: var(--fog); padding: 12px 6px; }
+
+/* step 2: side and amount */
+.sides { display: grid; gap: 8px; }
+.side { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 12px; align-items: center; text-align: left; background: var(--deck); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+.side i { width: 14px; height: 14px; border-radius: 3px; background: var(--c, var(--fog)); grid-row: span 2; }
+.side b { font-size: 19px; }
+.side span { color: var(--fog); font-size: 15px; }
+.side[aria-pressed="true"] { border-color: var(--c, var(--fog)); background: var(--well); }
+.side.t0 { --c: var(--ask); } .side.t1 { --c: var(--bid); } .side.both { --c: var(--paper); }
+.side.both i { background: linear-gradient(var(--ask) 50%, var(--bid) 50%); }
+.amount { display: flex; align-items: center; gap: 8px; margin-top: 18px; background: var(--well); border: 1px solid var(--rule); border-radius: 10px; padding: 2px 14px; }
+.amount span { color: var(--fog); font-size: 26px; }
+.amount input { flex: 1; min-width: 0; border: 0; background: none; font-size: 40px; font-weight: 700; padding: 6px 0; outline: none; }
+.amount:focus-within { outline: 2px solid var(--brass); outline-offset: 2px; }
+.presets { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.presets button { background: var(--deck); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 12px; color: var(--fog); }
+
+/* step 3: split */
+.shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.shape { position: relative; display: grid; justify-items: center; gap: 3px; padding: 9px 4px 7px; background: var(--deck); border: 1px solid var(--rule); border-radius: 8px; font-size: 15px; color: var(--fog); text-align: center; line-height: 1.1; cursor: pointer; }
+.shape input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+.shape svg { width: 48px; height: 20px; }
+.shape:has(input:checked) { border-color: var(--brass); color: var(--paper); background: var(--well); }
+.shape:has(input:checked) svg rect { fill: var(--brass); }
+.shape:has(input:focus-visible) { outline: 2px solid var(--brass); outline-offset: 2px; }
+.hint { margin: 8px 0 0; color: var(--fog); font-size: 16px; min-height: 2.8em; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
 .field { display: grid; gap: 4px; min-width: 0; }
-.field > span { color: var(--fog); font-size: 14px; }
-select, input[type="number"] { background: var(--well); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-height: 40px; }
-select { background-color: var(--well); color: var(--paper); max-width: 100%; }
-#pool { width: min(520px, 100%); }
-.filters { display: flex; gap: 6px; flex-wrap: wrap; }
-.filters select { min-height: 34px; padding: 4px 8px; font-size: 14px; }
+.field > span { color: var(--fog); font-size: 15px; }
+.field select { width: 100%; background: var(--well); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px; min-height: 40px; color: var(--paper); }
 
-/* pool facts */
-.facts { display: flex; flex-wrap: wrap; gap: 6px 26px; margin: 14px 0 0; color: var(--fog); font-size: 15px; }
+/* step 4: the plan */
+.apr { font-size: 76px; font-weight: 700; line-height: 0.95; color: var(--brass); letter-spacing: -0.02em; }
+.apr small { display: block; font-size: 18px; font-weight: 500; color: var(--fog); letter-spacing: 0; margin-top: 6px; }
+.orders { list-style: none; margin: 16px 0 0; padding: 0; }
+.orders li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--rule); }
+.orders .what { font-weight: 600; } .orders .usd { text-align: right; font-weight: 700; color: var(--brass); }
+.orders .sub { grid-column: 1 / -1; color: var(--fog); font-size: 15px; }
+.steps { margin: 14px 0 0; padding-left: 20px; color: var(--fog); } .steps li { margin: 5px 0; } .steps b { color: var(--paper); }
+.go { display: block; margin-top: 16px; padding: 13px; text-align: center; background: var(--brass); color: var(--night); font-weight: 700; border-radius: 10px; text-decoration: none; }
+.go:hover { filter: brightness(1.06); }
+.share { margin-top: 18px; padding: 14px; background: var(--deck); border-radius: 10px; }
+.share h3 { margin: 0 0 4px; font-size: 18px; }
+.share p { margin: 0 0 10px; color: var(--fog); font-size: 15px; }
+.share canvas { width: 100%; height: auto; border-radius: 8px; display: block; background: var(--night); }
+.share .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.links { display: flex; gap: 18px; margin-top: 12px; }
+.warn { padding: 8px 12px; border-left: 3px solid var(--warn); background: rgba(232, 182, 92, 0.08); color: #EDD6A8; font-size: 16px; margin-top: 10px; }
+.warn.bad { border-color: var(--loss); background: rgba(238, 122, 118, 0.08); color: #F3BDBB; }
+
+/* the scene: the ladder, always in view */
+.scene { position: sticky; top: 14px; background: radial-gradient(120% 70% at 70% 0%, rgba(136, 180, 240, 0.07), transparent 60%), var(--deck); border-radius: 14px; padding: 16px 16px 12px; }
+.scene-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.scene-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; color: var(--night); font-weight: 600; font-size: 14px; background: var(--fog); }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 20px; margin-top: 6px; color: var(--fog); font-size: 15px; }
 .facts b { color: var(--paper); font-weight: 600; }
-.tier { font-weight: 600; } .tier.green { color: var(--bid); } .tier.yellow { color: var(--warn); } .tier.red { color: var(--loss); } .tier.unclassified { color: var(--fog); }
-.warns { display: grid; gap: 6px; margin-top: 12px; }
-.warn { padding: 8px 12px; border-left: 3px solid var(--warn); background: rgba(231, 180, 90, 0.08); color: #EBD3A4; font-size: 15px; }
-.warn.bad { border-color: var(--loss); background: rgba(232, 105, 107, 0.08); color: #F1B8B9; }
-
-.main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; margin-top: 20px; align-items: start; }
-
-/* the ladder: one row per bin, highest price on top */
-.ladder-head { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px 64px 22px; gap: 10px; padding: 0 8px 6px; color: var(--fog); font-size: 14px; }
+.notice { margin-top: 12px; }
+.notice .warn { margin: 0 0 6px; }
+.ladder-head { display: grid; grid-template-columns: 96px minmax(0, 1fr) 62px 62px 18px; gap: 10px; padding: 12px 6px 6px; color: var(--fog); font-size: 14px; }
 .ladder-head span:nth-child(n+3) { text-align: right; }
-.ladder { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
-.rung { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px 64px 22px; gap: 10px; align-items: center; width: 100%; min-height: 26px; padding: 0 8px;
-  background: none; border: 0; border-bottom: 1px solid rgba(36, 56, 74, 0.55); text-align: left; cursor: pointer; }
+.ladder { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); max-height: 62vh; overflow: auto; }
+.rung { display: grid; grid-template-columns: 96px minmax(0, 1fr) 62px 62px 18px; gap: 10px; align-items: center; width: 100%; min-height: 26px; padding: 0 6px;
+  background: none; border: 0; border-bottom: 1px solid rgba(35, 58, 80, 0.55); text-align: left; transition: opacity 0.35s var(--ease); }
 .rung:hover, .rung[aria-pressed="true"] { background: var(--well); }
 .rung .px { font-family: var(--num); font-size: 13px; color: var(--fog); text-align: right; }
 .rung .depth { position: relative; height: 14px; }
-.rung .liq { position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: 1px; background: var(--side); opacity: var(--o, 0.6); }
-.rung .ord { position: absolute; top: -1px; bottom: -1px; left: var(--at, 0); width: var(--w, 0); min-width: 6px; background: var(--order); border-radius: 2px; transition: width 0.2s ease, left 0.2s ease; }
-.rung .ordtag { position: absolute; top: -3px; left: calc(var(--at, 0) + var(--w, 0) + 6px); font-size: 14px; font-weight: 600; color: var(--order); white-space: nowrap; }
+.rung .liq { position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: 1px; background: var(--side); opacity: var(--o, 0.6); transition: width 0.4s var(--ease); }
+.rung .ord { position: absolute; top: -2px; bottom: -2px; left: var(--at, 0); width: var(--w, 0); min-width: 6px; background: var(--brass); border-radius: 2px;
+  box-shadow: 0 0 10px rgba(240, 190, 79, 0.55); transform-origin: left center; transition: width 0.35s var(--ease), left 0.35s var(--ease); }
+.rung .ordtag { position: absolute; top: -3px; left: calc(var(--at, 0) + var(--w, 0) + 6px); font-size: 14px; font-weight: 700; color: var(--brass); white-space: nowrap; }
+.pour .rung .ord { animation: pour 0.7s var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.pour .rung .ordtag { animation: tag 0.7s var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms + 250ms); }
+@keyframes pour { from { transform: scaleX(0); opacity: 0.2; box-shadow: 0 0 0 rgba(240, 190, 79, 0); } 60% { box-shadow: 0 0 22px rgba(240, 190, 79, 0.9); } }
+@keyframes tag { from { opacity: 0; transform: translateX(-6px); } }
 .rung .m { text-align: right; font-size: 15px; }
 .rung .flag { text-align: center; color: var(--dim); font-size: 13px; }
 .rung.above { --side: var(--ask); } .rung.below { --side: var(--bid); }
 .rung.out .px, .rung.out .m { color: var(--dim); }
 .rung.losing .liq { background: repeating-linear-gradient(135deg, var(--loss) 0 3px, transparent 3px 6px); opacity: 0.55; }
 .rung.losing .flag { color: var(--loss); }
-.rung.mine .px { color: var(--order); font-weight: 500; }
-.priceline { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; padding: 3px 8px; color: var(--paper); font-size: 14px; }
-.priceline .px { font-family: var(--num); font-size: 13px; text-align: right; color: var(--paper); }
+.rung.mine .px { color: var(--brass); font-weight: 500; }
+.scene[data-focus="token0"] .rung.below, .scene[data-focus="token1"] .rung.above { opacity: 0.32; }
+.priceline { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; padding: 4px 6px; font-size: 14px; }
+.priceline .px { font-family: var(--num); font-size: 13px; text-align: right; }
 .priceline .bar { border-top: 1px dashed var(--paper); position: relative; }
-.priceline .bar span { position: absolute; right: 0; top: -10px; padding-left: 8px; background: var(--ink); }
+.priceline .bar span { position: absolute; right: 0; top: -11px; padding-left: 8px; background: var(--deck); }
 .pos { color: var(--bid); } .neg { color: var(--loss); }
-.key { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--fog); font-size: 14px; }
+.key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; color: var(--fog); font-size: 14px; }
 .key i { display: inline-block; width: 14px; height: 8px; margin-right: 6px; border-radius: 1px; vertical-align: 1px; }
-.detail { margin-top: 14px; padding: 12px 14px; background: var(--slate); border-radius: 6px; font-size: 15px; min-height: 52px; color: var(--fog); }
+.detail { margin-top: 12px; padding: 10px 12px; background: var(--night); border-radius: 8px; font-size: 15px; min-height: 46px; color: var(--fog); }
 .detail h3 { margin: 0 0 6px; font-size: 17px; color: var(--paper); }
 .detail dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 18px; margin: 0; }
 .detail dt { color: var(--fog); font-size: 13px; } .detail dd { margin: 0 0 4px; color: var(--paper); }
+.status { margin-top: 8px; color: var(--dim); font-size: 13px; min-height: 18px; }
 
-/* the ticket: what to deposit and how */
-.ticket { position: sticky; top: 16px; background: var(--slate); border-radius: 10px; padding: 18px; }
-.ticket h2 { margin: 0 0 12px; font-size: 21px; font-weight: 600; }
-.amount { display: flex; align-items: center; gap: 8px; background: var(--well); border: 1px solid var(--rule); border-radius: 8px; padding: 4px 12px; }
-.amount span { color: var(--fog); font-size: 22px; }
-.amount input { flex: 1; min-width: 0; border: 0; background: none; font-size: 30px; font-weight: 600; padding: 6px 0; outline: none; }
-.amount:focus-within { outline: 2px solid var(--order); outline-offset: 2px; }
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-top: 10px; }
-.seg button { background: var(--well); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 4px; cursor: pointer; color: var(--fog); }
-.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); font-weight: 600; }
-fieldset { border: 0; margin: 14px 0 0; padding: 0; min-width: 0; }
-legend { color: var(--fog); font-size: 14px; padding: 0; margin-bottom: 6px; }
-.shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.shape { position: relative; display: grid; justify-items: center; gap: 2px; padding: 6px 2px 5px; background: var(--well); border: 1px solid var(--rule); border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--fog); text-align: center; line-height: 1.1; }
-.shape input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
-.shape svg { width: 44px; height: 18px; }
-.shape:has(input:checked) { border-color: var(--order); color: var(--paper); }
-.shape:has(input:checked) svg rect { fill: var(--order); }
-.shape:has(input:focus-visible) { outline: 2px solid var(--order); outline-offset: 2px; }
-.hint { margin: 6px 0 0; color: var(--fog); font-size: 14px; min-height: 2.6em; }
-.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 10px; }
-.row3 select { width: 100%; min-height: 36px; padding: 4px 8px; }
-.result { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule); }
-.apr { font-size: 46px; font-weight: 700; line-height: 1; color: var(--order); }
-.apr small { font-size: 16px; font-weight: 500; color: var(--fog); margin-left: 6px; }
-.week { color: var(--fog); margin-top: 4px; }
-.orders { list-style: none; margin: 12px 0 0; padding: 0; }
-.orders li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--rule); }
-.orders .what { font-weight: 600; } .orders .usd { text-align: right; font-weight: 600; color: var(--order); }
-.orders .sub { grid-column: 1 / -1; color: var(--fog); font-size: 14px; }
-.steps { margin: 12px 0 0; padding-left: 20px; color: var(--fog); font-size: 15px; } .steps li { margin: 4px 0; } .steps b { color: var(--paper); }
-.go { display: block; margin-top: 14px; padding: 12px; text-align: center; background: var(--order); color: var(--ink); font-weight: 700; border-radius: 8px; text-decoration: none; }
-.go:hover { filter: brightness(1.06); }
-.links { display: flex; gap: 16px; margin-top: 10px; font-size: 15px; }
-.links button { background: none; border: 0; padding: 0; color: var(--ask); cursor: pointer; text-decoration: underline; }
-.empty { color: var(--fog); }
-.status { margin-top: 12px; color: var(--dim); font-size: 13px; min-height: 18px; }
-
-/* below the fold: raw table and explainer */
-details { margin-top: 24px; border-top: 1px solid var(--rule); padding-top: 12px; }
-summary { cursor: pointer; font-size: 18px; font-weight: 600; }
+/* below the fold */
+details { margin-top: 28px; border-top: 1px solid var(--rule); padding-top: 12px; }
+summary { cursor: pointer; font-size: 19px; font-weight: 600; }
 .tablewrap { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 th { color: var(--fog); font-weight: 500; cursor: pointer; }
 th:first-child, td:first-child, th:nth-child(3), td:nth-child(3) { text-align: left; }
 td.num { font-family: var(--num); font-size: 13px; }
-tr.mine td { color: var(--order); } tr.out td { color: var(--dim); } tr.now td { background: var(--slate); }
+tr.mine td { color: var(--brass); } tr.out td { color: var(--dim); } tr.now td { background: var(--deck); }
 .t0 { color: var(--ask); } .t1 { color: var(--bid); }
 .explain p { max-width: 74ch; color: var(--fog); } .explain b { color: var(--paper); }
-footer { margin-top: 28px; color: var(--dim); font-size: 14px; max-width: 90ch; }
+footer { margin-top: 30px; color: var(--dim); font-size: 14px; max-width: 90ch; }
 
-@media (max-width: 980px) {
-  .top { grid-template-columns: 1fr; } .poolbar { justify-content: flex-start; }
-  .main { grid-template-columns: minmax(0, 1fr); }
-  .ticket { position: static; order: -1; }
+@media (max-width: 1000px) {
+  .desk { grid-template-columns: minmax(0, 1fr); }
+  .scene { position: static; }
+  .rail .v { display: none; }
 }
 @media (max-width: 560px) {
-  .ladder-head, .rung { grid-template-columns: 78px minmax(0, 1fr) 54px 18px; }
+  .rail .t { font-size: 14px; }
+  .ladder-head, .rung { grid-template-columns: 76px minmax(0, 1fr) 54px 16px; }
   .ladder-head span:nth-child(4), .rung .m.day { display: none; }
-  .priceline { grid-template-columns: 78px minmax(0, 1fr); }
+  .priceline { grid-template-columns: 76px minmax(0, 1fr); }
+  .apr { font-size: 60px; }
+  .shapes { grid-template-columns: repeat(3, 1fr); }
 }
-@media (prefers-reduced-motion: reduce) { .rung .ord { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
-<a class="skip" href="#ticket-title">Skip to your plan</a>
+<a class="skip" href="#step4-title" data-go="4">Skip to your plan</a>
 <div class="wrap">
-  <header class="top">
+  <header class="mast">
     <div class="brand">
-      <h1>Bin Picker</h1>
-      <p>Which <a href="https://app.metric.xyz" target="_blank" rel="noopener">Metric</a> bins should hold your liquidity</p>
+      <svg viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="5" width="18" height="5" rx="1" fill="#88B4F0"/><rect x="3" y="14.5" width="28" height="5" rx="1" fill="#F0BE4F"/><rect x="3" y="24" width="13" height="5" rx="1" fill="#67D0AE"/></svg>
+      <div>
+        <h1>Bin Picker</h1>
+        <p>Which <a href="https://app.metric.xyz" target="_blank" rel="noopener">Metric</a> bins should hold your liquidity</p>
+      </div>
     </div>
-    <div class="poolbar">
-      <label class="field"><span>Chain</span><select id="chain"></select></label>
-      <label class="field"><span>Pool</span><select id="pool"><option>Loading pools…</option></select></label>
-      <div class="field"><span>Show pools with</span><div class="filters">
-        <select id="fTvl" aria-label="Minimum TVL"><option value="0">any TVL</option><option value="10000">TVL ≥ $10K</option><option value="100000">TVL ≥ $100K</option><option value="1000000">TVL ≥ $1M</option></select>
-        <select id="fVol" aria-label="Minimum 24h volume"><option value="0">any volume</option><option value="1">trades in 24h</option><option value="100000">24h ≥ $100K</option><option value="1000000">24h ≥ $1M</option></select>
-        <select id="fTier" aria-label="Pool tier"><option value="">any tier</option><option value="green,yellow">green or yellow</option><option value="green">green only</option></select>
-      </div></div>
-    </div>
+    <div class="chains" id="chain" role="group" aria-label="Chain"></div>
   </header>
-  <section id="facts" aria-live="polite"></section>
 
-  <div class="main">
-    <section aria-labelledby="ladder-title">
-      <h2 class="sr" id="ladder-title">Bins by price</h2>
+  <nav aria-label="Steps"><ol class="rail" id="rail"></ol></nav>
+
+  <div class="desk">
+    <div class="steps-col">
+      <section class="step" data-step="1" aria-labelledby="step1-title">
+        <h2 id="step1-title">Pick a pool</h2>
+        <p class="lede">Every Metric pool on this chain. Green pools have the safest pricing setup.</p>
+        <label class="sr" for="poolSearch">Search pools</label>
+        <input class="search" id="poolSearch" type="search" placeholder="Search a pair or curator" autocomplete="off">
+        <div class="filters">
+          <select id="fTvl" aria-label="Minimum TVL"><option value="0">any TVL</option><option value="10000">TVL ≥ $10K</option><option value="100000">TVL ≥ $100K</option><option value="1000000">TVL ≥ $1M</option></select>
+          <select id="fVol" aria-label="Minimum 24h volume"><option value="0">any volume</option><option value="1">traded in 24h</option><option value="100000">24h ≥ $100K</option><option value="1000000">24h ≥ $1M</option></select>
+          <select id="fTier" aria-label="Pool tier"><option value="">any tier</option><option value="green,yellow">green or yellow</option><option value="green">green only</option></select>
+        </div>
+        <ul class="pools" id="pools"><li class="empty">Loading pools…</li></ul>
+      </section>
+
+      <section class="step" data-step="2" aria-labelledby="step2-title" hidden>
+        <h2 id="step2-title">What you put in</h2>
+        <p class="lede" id="sideLede">Bins above the price take one token, bins below take the other.</p>
+        <div class="sides" id="have" role="group" aria-label="Token you hold"></div>
+        <label class="sr" for="amount">Amount in dollars</label>
+        <div class="amount"><span>$</span><input id="amount" type="number" min="1" step="any" value="1000" inputmode="decimal" name="amount" autocomplete="off"></div>
+        <div class="presets" id="presets"><button type="button" data-v="250">$250</button><button type="button" data-v="1000">$1K</button><button type="button" data-v="5000">$5K</button><button type="button" data-v="25000">$25K</button></div>
+        <div class="nav"><button type="button" class="btn" data-go="1">Back</button><button type="button" class="btn primary" data-go="3">Continue</button></div>
+      </section>
+
+      <section class="step" data-step="3" aria-labelledby="step3-title" hidden>
+        <h2 id="step3-title">How to split it</h2>
+        <p class="lede">Each shape fills the ladder differently. Watch it change on the right.</p>
+        <fieldset style="border:0;margin:0;padding:0;min-width:0">
+          <legend class="sr">Strategy</legend>
+          <div class="shapes" id="strategy"></div>
+          <p class="hint" id="stratHint"></p>
+        </fieldset>
+        <div class="row3">
+          <label class="field"><span>Bins</span><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+          <label class="field"><span>Look back</span><select id="window"></select></label>
+          <label class="field"><span>Markout after</span><select id="horizon"></select></label>
+        </div>
+        <div class="nav"><button type="button" class="btn" data-go="2">Back</button><button type="button" class="btn primary" data-go="4">Show my plan</button></div>
+      </section>
+
+      <section class="step" data-step="4" aria-labelledby="step4-title" hidden>
+        <h2 id="step4-title" tabindex="-1">Your plan</h2>
+        <div id="plan"><div class="empty">Working out your plan…</div></div>
+        <div class="nav"><button type="button" class="btn" data-go="3">Change the split</button></div>
+      </section>
+    </div>
+
+    <section class="scene" id="scene" aria-labelledby="scene-title">
+      <div class="scene-head"><h2 id="scene-title">Choose a pool</h2><span id="tierPill"></span></div>
+      <div id="facts" aria-live="polite"></div>
+      <div class="notice" id="notice" aria-live="assertive"></div>
       <div class="ladder-head" id="ladderHead"><span>≈ Price</span><span>Liquidity, your orders</span><span>Markout</span><span>24h</span><span></span></div>
-      <ol class="ladder" id="ladder"><li class="empty" style="padding:12px 8px">Loading bins…</li></ol>
+      <ol class="ladder" id="ladder"><li class="empty">Loading bins…</li></ol>
       <div class="key" id="key"></div>
       <div class="detail" id="detail" aria-live="polite">Select a bin to see its numbers.</div>
-    </section>
-
-    <aside class="ticket" aria-labelledby="ticket-title">
-      <h2 id="ticket-title">Your plan</h2>
-      <label class="sr" for="amount">Amount in dollars</label>
-      <div class="amount"><span>$</span><input id="amount" type="number" min="1" step="any" value="1000" inputmode="decimal" name="amount" autocomplete="off"></div>
-      <div class="seg" id="have" role="group" aria-label="Token you hold"></div>
-      <fieldset>
-        <legend>How to split it</legend>
-        <div class="shapes" id="strategy"></div>
-        <p class="hint" id="stratHint"></p>
-      </fieldset>
-      <div class="row3">
-        <label class="field"><span>Bins</span><select id="count"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-        <label class="field"><span>Window</span><select id="window"></select></label>
-        <label class="field"><span>Horizon</span><select id="horizon"></select></label>
-      </div>
-      <div class="result" id="plan"><div class="empty">Working out your plan…</div></div>
       <div class="status" id="status" aria-live="polite"></div>
-    </aside>
+    </section>
   </div>
 
   <details id="tableBox">
@@ -238,8 +329,11 @@ footer { margin-top: 28px; color: var(--dim); font-size: 14px; max-width: 90ch; 
 "use strict";
 const BP = window.BinPicker;
 const $ = (id) => document.getElementById(id);
-const state = { chain: 1, pool: null, pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m", sort: { key: "bin", dir: -1 }, selected: null };
+const state = { chain: 1, pool: null, allPools: [], pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m",
+  sort: { key: "bin", dir: -1 }, selected: null, step: 1, search: "", planSig: "", aprShown: null };
 const winLabel = () => state.window === "all" ? "all time" : state.window;
+const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SITE = "https://roprero.github.io/metric-bin-picker/";
 
 const usdFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 });
 const usdFine = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -251,19 +345,22 @@ const fmtPrice = (v) => v === null || v === undefined ? "–" : v >= 1000 ? v.to
 const fmtRange = (r) => r ? `${fmtPrice(r[0])} to ${fmtPrice(r[1])}` : "–";
 const fmtShare = (x) => x >= 0.01 ? `${(x * 100).toFixed(1)}%` : `${(x * 100).toFixed(3)}%`;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const tokenOf = (where) => where === "token0" ? state.meta.token0Symbol : where === "token1" ? state.meta.token1Symbol : `${state.meta.token0Symbol} and ${state.meta.token1Symbol}`;
+const tokenOf = (side) => side === "token0" ? state.meta.token0Symbol : side === "token1" ? state.meta.token1Symbol : `${state.meta.token0Symbol} and ${state.meta.token1Symbol}`;
+const tierOf = (p) => p?.classificationSummary?.tierQualification || "unclassified";
 
 // Little bar glyphs that show the shape of each split; the price sits at the left for the nearest-first strategies.
 const GLYPHS = { score: [6, 9, 4, 7, 3], max: [10, 6, 6, 3, 2], flat: [6, 6, 6, 6, 6], volume: [4, 8, 10, 7, 3], spot: [7, 7, 7, 0, 0], curve: [10, 6, 4, 3, 2], bidask: [2, 3, 4, 6, 10] };
-const glyph = (k) => `<svg viewBox="0 0 44 18" aria-hidden="true">${GLYPHS[k].map((h, i) => `<rect x="${2 + i * 8.4}" y="${17 - h * 1.6}" width="6" height="${Math.max(h * 1.6, 0.6)}" fill="#8EA3B5"/>`).join("")}</svg>`;
+const glyph = (k) => `<svg viewBox="0 0 44 18" aria-hidden="true">${GLYPHS[k].map((h, i) => `<rect x="${2 + i * 8.4}" y="${17 - h * 1.6}" width="6" height="${Math.max(h * 1.6, 0.6)}" fill="#93A7B9"/>`).join("")}</svg>`;
 
+/* ---------- link and memory ---------- */
 function save() {
-  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon, ft: $("fTvl").value, fv: $("fVol").value, fr: $("fTier").value });
+  const p = new URLSearchParams({ chain: state.chain, pool: state.pool || "", amt: $("amount").value, have: state.have, n: $("count").value, s: state.strategy, w: state.window, h: state.horizon, ft: $("fTvl").value, fv: $("fVol").value, fr: $("fTier").value, st: state.step });
   history.replaceState(null, "", `?${p}`);
   try { localStorage.setItem("binpicker", p.toString()); } catch {}
 }
 function restore() {
-  let p = new URLSearchParams(location.search);
+  const fromLink = new URLSearchParams(location.search);
+  let p = fromLink;
   if (![...p.keys()].length) { try { p = new URLSearchParams(localStorage.getItem("binpicker") || ""); } catch {} }
   if (p.get("chain")) state.chain = Number(p.get("chain"));
   if (p.get("pool")) state.pool = p.get("pool");
@@ -276,60 +373,86 @@ function restore() {
   for (const [id, key] of [["fTvl", "ft"], ["fVol", "fv"], ["fTier", "fr"]]) {
     const v = p.get(key); if (v !== null && [...$(id).options].some((o) => o.value === v)) $(id).value = v;
   }
+  // A shared link with a pool opens straight on the plan; otherwise resume where the visitor left, or start at step 1.
+  const st = Number(p.get("st"));
+  state.wantStep = fromLink.get("pool") && !fromLink.get("st") ? 4 : st >= 1 && st <= 4 && state.pool ? st : 1;
 }
 
-function renderSettings() {
-  $("strategy").innerHTML = Object.entries(BP.STRATEGIES).map(([k, s]) =>
-    `<label class="shape"><input type="radio" name="strategy" value="${k}" ${k === state.strategy ? "checked" : ""}>${glyph(k)}${esc(s.label)}</label>`).join("");
-  $("window").innerHTML = BP.WINDOWS.map((w) => `<option value="${w}">${w === "all" ? "all time" : w}</option>`).join("");
-  $("horizon").innerHTML = BP.HORIZONS.map((h) => `<option value="${h}">${h}</option>`).join("");
-  $("window").value = state.window; $("horizon").value = state.horizon;
-  $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint;
+/* ---------- steps ---------- */
+const STEPS = ["Pool", "Your side", "Split", "Plan"];
+function railValue(i) {
+  const m = state.meta;
+  if (i === 1) return m ? m.pair : "not chosen";
+  if (i === 2) return m ? `${fmtUsd(Number($("amount").value) || 0)} in ${tokenOf(state.have)}` : "";
+  if (i === 3) return `${BP.STRATEGIES[state.strategy].label}, ${$("count").value} bins`;
+  if (i === 4) return state.lastPlan?.bins.length ? `${fmtPct(state.lastPlan.aprBps)} expected` : "";
+  return "";
 }
+function renderRail() {
+  $("rail").innerHTML = STEPS.map((t, k) => {
+    const i = k + 1, cur = i === state.step, done = i < state.step, locked = i > 1 && !state.meta;
+    return `<li><button type="button" data-go="${i}" class="${done ? "done" : ""}" ${cur ? 'aria-current="step"' : ""} ${locked ? "disabled" : ""}>
+      <span class="n">${i}</span><span class="t">${t}</span><span class="v">${esc(railValue(i))}</span></button></li>`;
+  }).join("");
+}
+function goto(n, focus = true) {
+  if (n > 1 && !state.meta) n = 1;
+  state.step = n;
+  document.querySelectorAll(".step").forEach((s) => (s.hidden = Number(s.dataset.step) !== n));
+  $("scene").dataset.focus = n === 2 && state.have !== "both" ? state.have : "";
+  renderRail();
+  save();
+  if (focus) $(`step${n}-title`)?.focus?.({ preventScroll: true });
+  if (n === 4) replayPour();
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-go]"); if (!b || b.disabled) return;
+  goto(Number(b.dataset.go));
+});
 
-function setStatus(t) { $("status").textContent = t; }
-
-// The three chains Metric serves today: shown at once, then replaced by the API's list when it arrives.
+/* ---------- chains and pools ---------- */
 const CHAIN_NAMES = { 1: "Ethereum", 56: "BNB Chain", 4663: "Robinhood" };
 const KNOWN_CHAINS = Object.entries(CHAIN_NAMES).map(([chainId, name]) => ({ chainId: Number(chainId), name }));
 function renderChains(chains) {
-  $("chain").innerHTML = chains.map((c) => `<option value="${c.chainId}">${esc(CHAIN_NAMES[c.chainId] || c.name)}</option>`).join("");
-  $("chain").value = String(state.chain);
+  $("chain").innerHTML = chains.map((c) => `<button type="button" data-chain="${c.chainId}" aria-pressed="${c.chainId === state.chain}">${esc(CHAIN_NAMES[c.chainId] || c.name)}</button>`).join("");
 }
 async function loadChains() { renderChains(await BP.api.chains()); }
 
-// After the first plan, fetch the other windows while the visitor reads, so switching the window is instant too.
-function prefetchWindows() {
-  const pool = state.pool, chain = state.chain;
-  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
-  idle(() => BP.WINDOWS.filter((w) => w !== state.window).forEach((w) => BP.api.bins(chain, pool, w).catch(() => {})));
-}
-
 async function loadPools() {
+  $("pools").innerHTML = `<li class="empty">Loading pools…</li>`;
   state.allPools = await BP.api.pools(state.chain);
   applyPoolFilter();
 }
 
-// Pool list filters asked for in #feedback (min TVL, min 24h volume, tier). Returns true when the selected pool changed.
+// Pool list filters asked for in #feedback (min TVL, min 24h volume, tier) plus a search box. Returns true when the selected pool changed.
 function applyPoolFilter() {
   const tiers = $("fTier").value ? $("fTier").value.split(",") : null;
-  state.pools = BP.filterPools(state.allPools || [], { minTvl: Number($("fTvl").value), minVolume24h: Number($("fVol").value), tiers });
-  const opt = (p) => {
-    const tier = p.classificationSummary?.tierQualification || "unclassified";
-    return `<option value="${p.poolAddress}">${esc(p.pair)}, ${tier}, TVL ${fmtUsd(p.tvlFiat || 0)}, 24h ${fmtUsd(p.volumeByWindow?.["24h"] || 0)}, ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</option>`;
-  };
-  $("pool").innerHTML = state.pools.length ? state.pools.map(opt).join("") : `<option value="">No pool matches these filters</option>`;
+  const q = state.search.trim().toLowerCase();
+  state.pools = BP.filterPools(state.allPools || [], { minTvl: Number($("fTvl").value), minVolume24h: Number($("fVol").value), tiers })
+    .filter((p) => !q || `${p.pair} ${p.adminUsername || ""}`.toLowerCase().includes(q));
   const before = state.pool;
-  if (!state.pool || !state.pools.some((p) => p.poolAddress.toLowerCase() === state.pool.toLowerCase())) state.pool = state.pools[0]?.poolAddress || null;
-  $("pool").value = state.pools.find((p) => p.poolAddress.toLowerCase() === state.pool?.toLowerCase())?.poolAddress || "";
+  if (!q && (!state.pool || !state.pools.some((p) => p.poolAddress.toLowerCase() === state.pool.toLowerCase()))) state.pool = state.pools[0]?.poolAddress || null;
+  renderPools();
   return before !== state.pool;
 }
+function renderPools() {
+  const sel = state.pool?.toLowerCase();
+  $("pools").innerHTML = state.pools.length ? state.pools.map((p) => {
+    const tier = tierOf(p);
+    return `<li><button type="button" class="poolcard" data-pool="${p.poolAddress}" data-tier="${tier}" aria-pressed="${p.poolAddress.toLowerCase() === sel}">
+      <span class="dot ${tier}" title="${tier} tier"></span><span class="pair">${esc(p.pair)}</span><span class="tvl">${fmtUsd(p.tvlFiat || 0)}</span>
+      <span class="meta">${tier} tier, 24h volume ${fmtUsd(p.volumeByWindow?.["24h"] || 0)}, curator ${esc(p.adminUsername || p.poolAddress.slice(0, 8))}</span>
+    </button></li>`;
+  }).join("") : `<li class="empty">No pool matches. Loosen the filters or clear the search.</li>`;
+}
 
+/* ---------- one pool ---------- */
 async function loadPool() {
   if (!state.pool) return;
   const t0 = performance.now();
   setStatus("Loading bins…");
   const r = await BP.loadScored(state.chain, state.pool, { window: state.window, horizon: state.horizon });
+  clearNotice();
   state.meta = r.meta;
   state.loadedPool = state.pool;
   state.curBin = r.curBin;
@@ -337,7 +460,7 @@ async function loadPool() {
   state.rows = r.rows.map((x) => ({ ...x, price: x.priceRange ? x.priceRange[0] : null }));
   if (!state.rows.some((x) => x.bin === state.selected)) state.selected = null;
   renderHave();
-  // performance.now() counts from navigation start, so the first load shows the full time a visitor waited for a plan
+  renderPools();
   const ms = Math.round(performance.now() - t0);
   setStatus(`Updated ${new Date().toLocaleTimeString()}, active bin #${state.curBin}, ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
   state.firstPlanMs = state.firstPlanMs || Math.round(performance.now());
@@ -346,8 +469,9 @@ async function loadPool() {
 
 function renderHave() {
   const m = state.meta;
-  const opts = [["token0", `I hold ${m.token0Symbol}`], ["token1", `I hold ${m.token1Symbol}`], ["both", "Both"]];
-  $("have").innerHTML = opts.map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="${state.have === v}">${esc(t)}</button>`).join("");
+  const opts = [["token0", "t0", `I hold ${m.token0Symbol}`, `fills bins above the price`], ["token1", "t1", `I hold ${m.token1Symbol}`, `fills bins below the price`], ["both", "both", "I hold both", "fills either side"]];
+  $("have").innerHTML = opts.map(([v, c, t, s]) => `<button type="button" class="side ${c}" data-v="${v}" aria-pressed="${state.have === v}"><i></i><b>${esc(t)}</b><span>${s}</span></button>`).join("");
+  $("sideLede").textContent = `Bins above the price take ${m.token0Symbol}, bins below take ${m.token1Symbol}. Pick what is in your wallet.`;
 }
 
 function currentPlan() {
@@ -357,26 +481,29 @@ function currentPlan() {
 function render() {
   if (!state.meta) return;
   const p = currentPlan();
-  renderFacts(); renderLadder(p); renderDetail(p); renderTicket(p); renderTable(p); renderExplain(); save();
+  state.lastPlan = p;
+  renderFacts(); renderLadder(p); renderDetail(p); renderTicket(p); renderTable(p); renderExplain(); renderRail(); save();
+  const sig = `${state.pool}|${p.bins.map((b) => `${b.bin}:${Math.round(b.usd)}`).join(",")}`;
+  if (sig !== state.planSig) { state.planSig = sig; frameLadder(); replayPour(); }
 }
 
 function renderFacts() {
   const m = state.meta;
-  const tier = m.classificationSummary?.tierQualification || "unclassified";
+  const tier = tierOf(m);
   const mk = m.markoutByWindow?.[state.window]?.byHorizon?.[state.horizon]?.aprBps;
   const warns = BP.poolWarnings(m);
   if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: `No swaps in the last 24h (market closed or a quiet pool). Bins are ranked on ${winLabel()} only.` });
+  $("scene-title").textContent = m.pair;
+  $("tierPill").innerHTML = `<span class="pill ${tier}">${tier} tier</span>`;
   $("facts").innerHTML = `
     <div class="facts">
-      <span><b>${esc(m.pair)}</b> <span class="tier ${tier}">${tier} tier</span></span>
       <span>TVL <b>${fmtUsd(m.tvlFiat || 0)}</b></span>
       <span>Volume ${winLabel()} <b>${fmtUsd(m.volumeByWindow?.[state.window] || 0)}</b></span>
       <span>Pool markout ${state.horizon}, ${winLabel()} <b class="${cls(mk)}">${fmtPct(mk)}</b></span>
       <span>Reference <b>${state.reference ? "≈ " + fmtPrice(state.reference) : "–"}</b> ${esc(m.token1Symbol)} per ${esc(m.token0Symbol)}</span>
-      <span>Curator <b>${esc(m.adminUsername || "unnamed")}${m.verifiedAdmin ? ", verified" : ""}</b></span>
-      <span>Curator and Metric keep <b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b> of the spread</span>
+      <span>Curator <b>${esc(m.adminUsername || "unnamed")}${m.verifiedAdmin ? ", verified" : ""}</b>, keeps with Metric <b>${((m.spreadAdminFeeE6 + m.spreadProtocolFeeE6) / 1e4).toFixed(0)}%</b> of the spread</span>
     </div>
-    ${warns.length ? `<div class="warns">${warns.map((w) => `<div class="warn ${w.level === "bad" ? "bad" : ""}">${esc(w.text)}</div>`).join("")}</div>` : ""}`;
+    ${warns.map((w) => `<div class="warn ${w.level === "bad" ? "bad" : ""}">${esc(w.text)}</div>`).join("")}`;
 }
 
 // The ladder: the traded range plus a few bins of margin, highest price first, a dashed line where the price is now.
@@ -388,7 +515,7 @@ function renderLadder(plan) {
   const maxL = Math.max(1, ...rows.map((r) => r.liquidity));
   const maxS = Math.max(1, ...rows.map((r) => r.score || 0));
   const maxOrder = Math.max(1, ...plan.bins.map((b) => b.usd));
-  const mine = new Map(plan.bins.map((b) => [b.bin, b]));
+  const mine = new Map(plan.bins.map((b, i) => [b.bin, { ...b, i }]));
   $("ladderHead").innerHTML = `<span>≈ Price, ${esc(state.meta.token1Symbol)}</span><span>Liquidity, your orders</span><span>${winLabel()}</span><span>24h</span><span></span>`;
   let out = "";
   for (const r of rows) {
@@ -399,7 +526,7 @@ function renderLadder(plan) {
     const o = mine.get(r.bin);
     const losing = r.mkMain !== null && r.mkMain <= 0;
     const classes = ["rung", r.bin > state.curBin ? "above" : "below", o ? "mine" : "", losing ? "losing" : "", !r.eligible ? "out" : ""].join(" ");
-    const liqW = Math.max(1.5, (r.liquidity / maxL) * 62);
+    const liqW = Math.max(1.5, (r.liquidity / maxL) * 60);
     const opacity = r.eligible ? 0.3 + 0.7 * Math.max(0, r.score) / maxS : 0.22;
     const ordW = o ? Math.max(3, (o.usd / maxOrder) * 30) : 0;
     const flag = losing ? "✕" : !r.eligible ? "–" : "";
@@ -407,19 +534,36 @@ function renderLadder(plan) {
         aria-label="Bin ${r.bin}${o ? `, your order ${fmtUsd(o.usd)}` : ""}">
       <span class="px">${fmtPrice(r.priceRange?.[0])}</span>
       <span class="depth"><span class="liq" style="width:${liqW}%;--o:${opacity.toFixed(2)}"></span>${o
-        ? `<span class="ord" style="--at:${liqW + 1}%;--w:${ordW}%"></span><span class="ordtag" style="--at:${liqW + 1}%;--w:${ordW}%">${fmtUsd(o.usd)}</span>` : ""}</span>
+        ? `<span class="ord" style="--at:${liqW + 1}%;--w:${ordW}%;--i:${o.i}"></span><span class="ordtag" style="--at:${liqW + 1}%;--w:${ordW}%;--i:${o.i}">${fmtUsd(o.usd)}</span>` : ""}</span>
       <span class="m ${cls(r.mkMain)}">${fmtPct(r.mkMain)}</span>
       <span class="m day ${cls(r.mkDay)}">${fmtPct(r.mkDay)}</span>
       <span class="flag" title="${esc(r.reasons.join("; "))}">${flag}</span>
     </button></li>`;
   }
-  $("ladder").innerHTML = out || `<li class="empty" style="padding:12px 8px">This pool has no bins with liquidity yet.</li>`;
+  $("ladder").innerHTML = out || `<li class="empty">This pool has no bins with liquidity yet.</li>`;
   $("key").innerHTML = `
-    <span><i style="background:var(--ask)"></i>bins above the price take ${esc(state.meta.token0Symbol)}</span>
-    <span><i style="background:var(--bid)"></i>below take ${esc(state.meta.token1Symbol)}</span>
-    <span><i style="background:var(--order)"></i>your orders</span>
+    <span><i style="background:var(--ask)"></i>above the price, takes ${esc(state.meta.token0Symbol)}</span>
+    <span><i style="background:var(--bid)"></i>below, takes ${esc(state.meta.token1Symbol)}</span>
+    <span><i style="background:var(--brass)"></i>your orders</span>
     <span><i style="background:repeating-linear-gradient(135deg,var(--loss) 0 3px,transparent 3px 6px)"></i>lost money over ${winLabel()}</span>
     <span>brighter bar: higher score</span>`;
+}
+
+// Frame the ladder on what matters: your orders and the price line, so the pour is seen and not scrolled away.
+function frameLadder() {
+  const l = $("ladder"), line = l.querySelector(".priceline");
+  const marks = [...l.querySelectorAll(".rung.mine"), line].filter(Boolean);
+  if (!marks.length) return;
+  const top = Math.min(...marks.map((e) => e.offsetTop)), bottom = Math.max(...marks.map((e) => e.offsetTop + e.offsetHeight));
+  const pad = Math.max(40, (l.clientHeight - (bottom - top)) / 2);
+  l.scrollTo({ top: Math.max(0, top - l.offsetTop - pad), behavior: reduced() ? "auto" : "smooth" });
+}
+
+// The one orchestrated motion: your liquidity pours into the picked bins, nearest order first.
+function replayPour() {
+  if (reduced()) return;
+  const l = $("ladder");
+  l.classList.remove("pour"); void l.offsetWidth; l.classList.add("pour");
 }
 
 function renderDetail(plan) {
@@ -449,19 +593,32 @@ function shapeHint(plan) {
     : "Shape: drag each bar to the share above. Metric has no preset for this split.";
 }
 
+// Count the big APR figure up from the last value, so a change in the plan reads as a change.
+function countUp(el, to) {
+  const from = state.aprShown ?? 0;
+  state.aprShown = to;
+  if (reduced() || from === to) { el.textContent = fmtPct(to); return; }
+  const t0 = performance.now(), dur = 600;
+  const tick = (t) => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmtPct(from + (to - from) * e);
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function renderTicket(plan) {
   const m = state.meta;
   if (!plan.bins.length) {
     const where = state.have === "both" ? "either side" : `the ${tokenOf(state.have)} side`;
-    $("plan").innerHTML = `<div class="empty">No bin on ${esc(where)} earns reliably right now. Try the other token, another window or another pool.</div>`;
+    $("plan").innerHTML = `<div class="empty">No bin on ${esc(where)} earns reliably right now. Try the other token, a longer look-back or another pool.</div>`;
     return;
   }
   const near = plan.bins.filter((b) => Math.abs(b.distance) <= 2).length;
   const down = m.priceProviderStatus !== "healthy" || m.pauseLevel;
   $("plan").innerHTML = `
-    ${down ? `<div class="warn bad" style="margin-bottom:10px">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Liquidity here earns nothing until it reopens.</div>` : ""}
-    <div class="apr">${fmtPct(plan.aprBps)}<small>expected APR</small></div>
-    <div class="week">About ${fmtUsd(plan.weeklyUsd)} a week, after your own deposit dilutes each bin</div>
+    ${down ? `<div class="warn bad">The pool is not trading right now (${esc(m.pauseLevel ? "paused" : m.priceProviderStatus)}). Liquidity here earns nothing until it reopens.</div>` : ""}
+    <div class="apr"><span id="aprNum">${fmtPct(state.aprShown ?? plan.aprBps)}</span><small>expected APR on ${esc(m.pair)}, about ${fmtUsd(plan.weeklyUsd)} a week after your own deposit dilutes each bin</small></div>
     <ol class="orders">
       ${plan.bins.map((b) => `<li>
         <span class="what">Bin #${b.bin}, ${esc(tokenOf(b.side))}</span><span class="usd">${fmtUsd(b.usd)}</span>
@@ -474,13 +631,76 @@ function renderTicket(plan) {
       <li>${shapeHint(plan)}</li>
       <li>Check the other token reads <b>0</b>. If it doesn’t, the pool moved and a bin changed side: refresh here.</li>
     </ol>
-    ${near ? `<div class="warn" style="margin-top:10px">${near === 1 ? "One bin sits" : `${near} bins sit`} within 2 of the active bin. They earn the most and change side the fastest.</div>` : ""}
+    ${near ? `<div class="warn">${near === 1 ? "One bin sits" : `${near} bins sit`} within 2 of the active bin. They earn the most and change side the fastest.</div>` : ""}
     <a class="go" href="https://app.metric.xyz/pool/${state.chain}/${m.poolAddress}" target="_blank" rel="noopener">Open pool in Metric</a>
-    <div class="links"><button type="button" id="refresh">Refresh data</button><button type="button" id="copy">Copy link to this plan</button></div>`;
+    <div class="share">
+      <h3>Share this plan</h3>
+      <p>A card with your bins and the expected APR. Post it with the link so others can open the same plan.</p>
+      <canvas id="card" width="1200" height="630" aria-label="Plan card: ${esc(m.pair)}, ${fmtPct(plan.aprBps)} expected APR"></canvas>
+      <div class="row">
+        <button type="button" class="btn primary" id="postX">Post on X</button>
+        <button type="button" class="btn" id="saveCard">Download card</button>
+        <button type="button" class="btn" id="copyCard">Copy card</button>
+      </div>
+    </div>
+    <div class="links"><button type="button" class="linkbtn" id="refresh">Refresh data</button><button type="button" class="linkbtn" id="copy">Copy link to this plan</button></div>`;
+  countUp($("aprNum"), plan.aprBps);
+  drawCard($("card"), plan);
   $("refresh").onclick = () => { BP.clearCache(); loadPool().then(prefetchWindows).catch(fail); };
   $("copy").onclick = () => navigator.clipboard?.writeText(location.href).then(() => setStatus("Link copied."), () => setStatus(location.href));
+  $("saveCard").onclick = () => $("card").toBlob((b) => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `bin-picker-${m.pair.replace(/\W+/g, "-")}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
+  $("copyCard").onclick = () => $("card").toBlob((b) => {
+    if (!navigator.clipboard?.write || !window.ClipboardItem) return setStatus("This browser can’t copy images. Use Download card.");
+    navigator.clipboard.write([new ClipboardItem({ "image/png": b })]).then(() => setStatus("Card copied. Paste it into your post."), () => setStatus("Copy was blocked. Use Download card."));
+  });
+  $("postX").onclick = () => {
+    const text = `My @metricxyz plan for ${m.pair}: bins ${plan.bins.map((b) => "#" + b.bin).join(", ")}, ${fmtPct(plan.aprBps)} expected markout APR. Picked with Bin Picker`;
+    window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(location.href)}`, "_blank", "noopener");
+  };
 }
 
+/* ---------- share card ---------- */
+function drawCard(cv, plan) {
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height, m = state.meta;
+  const css = getComputedStyle(document.documentElement), c = (n) => css.getPropertyValue(n).trim();
+  const ui = (w, px) => `${w} ${px}px "Barlow Semi Condensed", "Arial Narrow", sans-serif`;
+  g.fillStyle = c("--night"); g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.78, 0, 10, W * 0.78, 0, W * 0.7);
+  glow.addColorStop(0, "rgba(136,180,240,0.16)"); glow.addColorStop(1, "rgba(136,180,240,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  // left: words
+  g.fillStyle = c("--fog"); g.font = ui(500, 30); g.fillText("Bin Picker plan for Metric", 64, 92);
+  g.fillStyle = c("--paper"); g.font = ui(700, 64); g.fillText(m.pair, 64, 166);
+  g.fillStyle = c("--brass"); g.font = ui(700, 150); g.fillText(fmtPct(plan.aprBps), 56, 330);
+  g.fillStyle = c("--fog"); g.font = ui(500, 30); g.fillText("expected markout APR", 66, 376);
+  g.fillStyle = c("--paper"); g.font = ui(600, 32);
+  g.fillText(`Bins ${plan.bins.map((b) => "#" + b.bin).join(", ")}, ${BP.STRATEGIES[state.strategy].label.toLowerCase()} split`, 66, 450);
+  g.fillStyle = c("--dim"); g.font = ui(500, 26);
+  g.fillText(`${tierOf(m)} tier, ${winLabel()} look-back, markout after ${state.horizon}. Past data, not a forecast.`, 66, 500);
+  g.fillStyle = c("--fog"); g.font = ui(600, 28); g.fillText("roprero.github.io/metric-bin-picker", 66, 570);
+  // right: a small ladder, the price line and the orders
+  const rows = state.rows.filter((r) => r.liquidity > 1 || r.bin === state.curBin);
+  const center = state.curBin, span = Math.max(6, ...plan.bins.map((b) => Math.abs(b.bin - center) + 2));
+  const pick = rows.filter((r) => Math.abs(r.bin - center) <= span).sort((a, b) => b.bin - a.bin);
+  const x0 = 760, x1 = W - 64, top = 70, bottom = H - 70;
+  const rh = Math.min(30, (bottom - top) / Math.max(1, pick.length));
+  const maxL = Math.max(1, ...pick.map((r) => r.liquidity)), maxO = Math.max(1, ...plan.bins.map((b) => b.usd));
+  const mine = new Map(plan.bins.map((b) => [b.bin, b]));
+  pick.forEach((r, i) => {
+    const y = top + i * rh + rh / 2;
+    if (r.bin === center) { g.strokeStyle = c("--paper"); g.setLineDash([8, 6]); g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]); return; }
+    const w = Math.max(4, (r.liquidity / maxL) * (x1 - x0) * 0.55);
+    g.globalAlpha = 0.55; g.fillStyle = r.bin > center ? c("--ask") : c("--bid"); g.fillRect(x0, y - rh * 0.3, w, rh * 0.6); g.globalAlpha = 1;
+    const o = mine.get(r.bin);
+    if (o) {
+      const ow = Math.max(10, (o.usd / maxO) * (x1 - x0) * 0.35);
+      g.shadowColor = "rgba(240,190,79,0.8)"; g.shadowBlur = 18; g.fillStyle = c("--brass");
+      g.fillRect(x0 + w + 6, y - rh * 0.38, ow, rh * 0.76); g.shadowBlur = 0;
+    }
+  });
+}
+
+/* ---------- table and explainer ---------- */
 const COLS = () => [
   ["bin", "Bin"], ["price", `≈ Price, ${state.meta.token1Symbol}`], ["side", "Takes"], ["swaps", `Swaps, ${winLabel()}`], ["volume", `Volume, ${winLabel()}`], ["liquidity", "Liquidity"],
   ["mkMain", `Markout ${state.horizon}, ${winLabel()}`], ["mkDay", `Markout ${state.horizon}, 24h`], ["pnl", `Trading PnL, ${winLabel()}`], ["score", "Score"],
@@ -515,13 +735,38 @@ function renderExplain() {
     : "";
 }
 
-function fail(e) { console.error(e); setStatus(`Couldn’t load data from Metric (${e.message}). Check your connection and press Refresh data.`); }
+/* ---------- status and failures ---------- */
+function setStatus(t) { $("status").textContent = t; }
+function clearNotice() { $("notice").innerHTML = ""; }
+function fail(e) {
+  console.error(e);
+  const why = e && e.timeout
+    ? "Metric’s API did not answer within 20 seconds. Some networks stall traffic to Cloudflare, which hosts the API; a VPN or another network fixes it."
+    : `Couldn’t load data from Metric (${esc(e && e.message)}). Check your connection.`;
+  $("notice").innerHTML = `<div class="warn bad">${why} <button type="button" class="linkbtn" id="retry">Try again</button></div>`;
+  if ($("pools").querySelector(".empty")?.textContent.startsWith("Loading")) $("pools").innerHTML = `<li class="empty">Pools didn’t load. Press Try again on the right.</li>`;
+  $("retry").onclick = () => { clearNotice(); BP.clearCache(); boot(); };
+  setStatus("");
+}
 
+/* ---------- wiring ---------- */
 for (const id of ["fTvl", "fVol", "fTier"]) $(id).onchange = () => { if (applyPoolFilter()) loadPool().then(prefetchWindows).catch(fail); else save(); };
-$("chain").onchange = async () => { state.chain = Number($("chain").value); state.pool = null; try { await loadPools(); await loadPool(); prefetchWindows(); } catch (e) { fail(e); } };
-$("pool").onchange = () => { state.pool = $("pool").value; loadPool().then(prefetchWindows).catch(fail); };
+$("poolSearch").oninput = (e) => { state.search = e.target.value; applyPoolFilter(); };
+$("chain").onclick = async (e) => {
+  const b = e.target.closest("button[data-chain]"); if (!b) return;
+  state.chain = Number(b.dataset.chain); state.pool = null; state.meta = null; state.search = ""; $("poolSearch").value = "";
+  renderChains(KNOWN_CHAINS.map((c) => c)); goto(1, false);
+  try { await loadPools(); await loadPool(); prefetchWindows(); } catch (err) { fail(err); }
+};
+$("pools").onclick = (e) => {
+  const b = e.target.closest("button[data-pool]"); if (!b) return;
+  state.pool = b.dataset.pool;
+  renderPools();
+  loadPool().then(() => { prefetchWindows(); goto(2); }).catch(fail);
+};
 $("amount").oninput = render; $("count").onchange = render;
-$("have").onclick = (e) => { const v = e.target.closest("button")?.dataset.v; if (!v) return; state.have = v; renderHave(); render(); };
+$("presets").onclick = (e) => { const v = e.target.closest("button")?.dataset.v; if (!v) return; $("amount").value = v; render(); };
+$("have").onclick = (e) => { const v = e.target.closest("button")?.dataset.v; if (!v) return; state.have = v; renderHave(); render(); $("scene").dataset.focus = v !== "both" ? v : ""; };
 $("strategy").onchange = (e) => { state.strategy = e.target.value; $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint; render(); };
 $("window").onchange = () => { state.window = $("window").value; loadPool().catch(fail); };
 $("horizon").onchange = () => { state.horizon = $("horizon").value; loadPool().catch(fail); };
@@ -532,21 +777,41 @@ $("ladder").onclick = (e) => {
   const p = currentPlan(); renderLadder(p); renderDetail(p);
 };
 
-(async () => {
-  restore();
-  renderSettings();
-  renderChains(KNOWN_CHAINS);
+function renderSettings() {
+  $("strategy").innerHTML = Object.entries(BP.STRATEGIES).map(([k, s]) =>
+    `<label class="shape"><input type="radio" name="strategy" value="${k}" ${k === state.strategy ? "checked" : ""}>${glyph(k)}${esc(s.label)}</label>`).join("");
+  $("window").innerHTML = BP.WINDOWS.map((w) => `<option value="${w}">${w === "all" ? "all time" : w}</option>`).join("");
+  $("horizon").innerHTML = BP.HORIZONS.map((h) => `<option value="${h}">${h}</option>`).join("");
+  $("window").value = state.window; $("horizon").value = state.horizon;
+  $("stratHint").textContent = BP.STRATEGIES[state.strategy].hint;
+}
+
+// After the first plan, fetch the other windows while the visitor reads, so switching the look-back is instant too.
+function prefetchWindows() {
+  const pool = state.pool, chain = state.chain;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+  idle(() => BP.WINDOWS.filter((w) => w !== state.window).forEach((w) => BP.api.bins(chain, pool, w).catch(() => {})));
+}
+
+async function boot() {
   // Three independent fetches at once instead of chains → pools → pool one after another (one round trip ≈ 0.3 s).
-  // A pool from the link or the last visit is loaded right away; the pool list fills in beside it.
   const chainsP = loadChains().catch(() => {});
   const poolP = state.pool ? loadPool() : null;
   try {
     await loadPools();
     if (!poolP || state.pool !== state.loadedPool) await loadPool(); else await poolP;
     prefetchWindows();
+    goto(state.wantStep || state.step, false);
+    state.wantStep = null;
   } catch (e) { fail(e); }
   await chainsP;
-})();
+}
+
+restore();
+renderSettings();
+renderChains(KNOWN_CHAINS);
+goto(1, false);
+boot();
 </script>
 </body>
 </html>
