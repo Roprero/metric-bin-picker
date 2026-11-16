@@ -13,9 +13,17 @@ if (!CHROME) { console.log("skip: no Chrome found (set CHROME=/path/to/chrome)")
 const USDC_USDT = "0xaef2ad7aBB651945e6D24276715f25BDED0ad41e";
 const TYPES = { ".html": "text/html", ".js": "text/javascript" };
 
+// /degraded.html is the page with /analytics/bins answering 503, to check the fallback to the order book.
+const BREAK_BINS = `<script>{ const f = window.fetch; window.fetch = (u, o) => String(u).includes("/analytics/bins")
+  ? Promise.resolve(new Response("{}", { status: 503 })) : f(u, o); }</script>`;
+
 function serve() {
   return new Promise((resolve) => {
     const srv = http.createServer((req, res) => {
+      if (req.url.split("?")[0] === "/degraded.html") {
+        res.writeHead(200, { "Content-Type": "text/html" });
+        return res.end(fs.readFileSync(path.join(ROOT, "index.html"), "utf8").replace('<script src="core.js">', BREAK_BINS + '<script src="core.js">'));
+      }
       const file = path.join(ROOT, decodeURIComponent(req.url.split("?")[0]) === "/" ? "index.html" : req.url.split("?")[0]);
       if (!file.startsWith(ROOT) || !fs.existsSync(file)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
@@ -120,6 +128,19 @@ const SCENARIOS = [
     },
   },
   {
+    name: "analytics/bins down: ladder from the order book, a notice, no plan, no crash",
+    path: "degraded.html",
+    q: `?chain=1&pool=${USDC_USDT}&amt=617&have=token0&n=3`,
+    check: (h, txt) => {
+      for (const s of ["per-bin analytics are unavailable", "order book only", "No plan for now", "503"]) if (!txt.includes(s)) throw new Error(`missing "${s}"`);
+      if (!/price is here, bin #-?\d+/.test(txt)) throw new Error("no price line");
+      const rungs = (h.match(/class="rung /g) || []).length;
+      if (rungs < 5) throw new Error(`only ${rungs} ladder rows`);
+      if (planBins(h).length) throw new Error("a plan was built without analytics");
+      if (!/Reference <b>≈ \d/.test(h)) throw new Error("no reference price");
+    },
+  },
+  {
     name: "first visit starts at step 1 with a pool list",
     q: `?chain=1&st=1`,
     check: (h) => {
@@ -136,7 +157,7 @@ const SCENARIOS = [
   for (const s of SCENARIOS) {
     try {
       // drop <script> bodies: the page's own template strings would otherwise match the checks below
-      const h = (await dom(base + s.q)).replace(/<script[\s\S]*?<\/script>/g, "");
+      const h = (await dom(base + (s.path || "") + s.q)).replace(/<script[\s\S]*?<\/script>/g, "");
       const txt = text(h);
       if (/Error:/.test((txt.match(/Updated[^·]*|Error:[^.]*/) || [""])[0])) throw new Error(txt.match(/Error:[^.]*/)[0]);
       s.check(h, txt);

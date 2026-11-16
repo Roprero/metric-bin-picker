@@ -174,6 +174,27 @@ t("unknown strategy is an error, not a silent default", () => {
     }
     console.log(`ok live: ${combos} non-empty plans across ${1 + bsc.length} pools × ${BP.WINDOWS.length} windows × ${BP.HORIZONS.length} horizons × ${Object.keys(BP.STRATEGIES).length} strategies`);
     n++;
+
+    // The fallback must agree with the analytics it stands in for: same active bin, same edges, same liquidity per bin.
+    for (const [chain, pool] of [...pools, ...bsc]) {
+      const [meta, bins, quote] = await Promise.all([BP.api.pool(chain, pool), BP.api.bins(chain, pool, "24h"), BP.api.bidAsk(chain, pool)]);
+      assert.ok(BP.binsUsable(bins), `${meta.pair}: /analytics/bins changed shape`);
+      assert.ok(quote.depth, `${meta.pair}: bid_ask has no depth`);
+      const ref = new Map(BP.scoreBins(bins.bins, bins.bins, bins.curBinIdx, { window: "24h" }).map((r) => [r.bin, r]));
+      const rows = BP.depthRows(quote.depth, meta, Number(meta.curBinIdx));
+      assert.ok(Math.abs(Number(meta.curBinIdx) - bins.curBinIdx) <= 1, `${meta.pair}: active bin ${meta.curBinIdx} vs ${bins.curBinIdx}`);
+      let worst = 0;
+      for (const r of rows) {
+        const a = ref.get(r.bin); if (!a) continue;
+        assert.ok(Math.abs(r.edges[0] - a.edges[0]) < 1e-9, `${meta.pair} #${r.bin} edges ${r.edges} vs ${a.edges}`);
+        if (a.liquidity > 1000) worst = Math.max(worst, Math.abs(r.liquidity / a.liquidity - 1));
+      }
+      // the two calls are a few hundred ms apart, so a busy bin can move a little between them
+      assert.ok(worst < 0.25, `${meta.pair}: order-book liquidity off by ${(worst * 100).toFixed(1)}%`);
+      console.log(`  fallback ${meta.pair}: ${rows.length} bins, worst liquidity gap ${(worst * 100).toFixed(2)}%`);
+    }
+    console.log("ok live: order-book fallback matches the per-bin analytics");
+    n++;
   }
   console.log(`${n} passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

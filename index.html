@@ -335,7 +335,7 @@ footer { margin-top: 30px; color: var(--dim); font-size: 14px; max-width: 90ch; 
 "use strict";
 const BP = window.BinPicker;
 const $ = (id) => document.getElementById(id);
-const state = { chain: 1, pool: null, allPools: [], pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m",
+const state = { chain: 1, pool: null, degraded: null, allPools: [], pools: [], meta: null, rows: [], curBin: null, have: "token0", strategy: "score", window: "7d", horizon: "5m",
   sort: { key: "bin", dir: -1 }, selected: null, step: 1, search: "", planSig: "", aprShown: null };
 const winLabel = () => state.window === "all" ? "all time" : state.window;
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -343,7 +343,7 @@ const SITE = "https://roprero.github.io/metric-bin-picker/";
 
 const usdFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 });
 const usdFine = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-const fmtUsd = (v) => (Math.abs(v || 0) < 1000 ? usdFine : usdFmt).format(v || 0);
+const fmtUsd = (v) => v === null || v === undefined ? "–" : (Math.abs(v) < 1000 ? usdFine : usdFmt).format(v);
 const fmtPct = (bps) => bps === null || bps === undefined ? "–" : `${(bps / 100).toFixed(1)}%`;
 const cls = (bps) => bps === null || bps === undefined ? "" : bps >= 0 ? "pos" : "neg";
 const fmtDev = (e) => e ? `${e[0] >= 0 ? "+" : ""}${e[0].toFixed(5)}% to ${e[1] >= 0 ? "+" : ""}${e[1].toFixed(5)}%` : "";
@@ -463,12 +463,13 @@ async function loadPool() {
   state.loadedPool = state.pool;
   state.curBin = r.curBin;
   state.reference = r.reference;
+  state.degraded = r.degraded;
   state.rows = r.rows.map((x) => ({ ...x, price: x.priceRange ? x.priceRange[0] : null }));
   if (!state.rows.some((x) => x.bin === state.selected)) state.selected = null;
   renderHave();
   renderPools();
   const ms = Math.round(performance.now() - t0);
-  setStatus(`Updated ${new Date().toLocaleTimeString()}, active bin #${state.curBin}, ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
+  setStatus(`Updated ${new Date().toLocaleTimeString()}, active bin #${state.curBin}${state.degraded ? ", order book only" : ""}, ${state.firstPlanMs ? `refreshed in ${ms} ms` : `plan ready ${Math.round(performance.now())} ms after opening`}`);
   state.firstPlanMs = state.firstPlanMs || Math.round(performance.now());
   render();
 }
@@ -498,6 +499,7 @@ function renderFacts() {
   const tier = tierOf(m);
   const mk = m.markoutByWindow?.[state.window]?.byHorizon?.[state.horizon]?.aprBps;
   const warns = BP.poolWarnings(m);
+  if (state.degraded) warns.push({ level: "warn", text: "Metric’s per-bin analytics are unavailable right now, so this is the pool’s order book: liquidity and prices per bin, without markout, scores or a plan. They come back on their own when the analytics answer again." });
   if (state.rows[0]?.poolIdle24h) warns.push({ level: "warn", text: `No swaps in the last 24h (market closed or a quiet pool). Bins are ranked on ${winLabel()} only.` });
   $("scene-title").textContent = m.pair;
   $("tierPill").innerHTML = `<span class="pill ${tier}">${tier} tier</span>`;
@@ -514,7 +516,8 @@ function renderFacts() {
 
 // The ladder: the traded range plus a few bins of margin, highest price first, a dashed line where the price is now.
 function renderLadder(plan) {
-  const traded = state.rows.filter((r) => r.swaps > 0).map((r) => r.bin);
+  // With the order book only there are no swap counts: frame the bins that hold liquidity instead.
+  const traded = state.rows.filter((r) => r.swaps > 0 || (state.degraded && r.liquidity > 1)).map((r) => r.bin);
   const keep = [...traded, state.curBin, ...plan.bins.map((b) => b.bin)];
   const lo = Math.min(...keep) - 3, hi = Math.max(...keep) + 3;
   const rows = state.rows.filter((r) => r.bin >= lo && r.bin <= hi && (r.liquidity > 1 || r.swaps > 0 || r.bin === state.curBin)).sort((a, b) => b.bin - a.bin);
@@ -533,9 +536,9 @@ function renderLadder(plan) {
     const losing = r.mkMain !== null && r.mkMain <= 0;
     const classes = ["rung", r.bin > state.curBin ? "above" : "below", o ? "mine" : "", losing ? "losing" : "", !r.eligible ? "out" : ""].join(" ");
     const liqW = Math.max(1.5, (r.liquidity / maxL) * 60);
-    const opacity = r.eligible ? 0.3 + 0.7 * Math.max(0, r.score) / maxS : 0.22;
+    const opacity = r.eligible ? 0.3 + 0.7 * Math.max(0, r.score) / maxS : state.degraded ? 0.55 : 0.22;
     const ordW = o ? Math.max(3, (o.usd / maxOrder) * 30) : 0;
-    const flag = losing ? "✕" : !r.eligible ? "–" : "";
+    const flag = losing ? "✕" : !r.eligible && !state.degraded ? "–" : "";
     out += `<li><button type="button" class="${classes}" data-bin="${r.bin}" aria-pressed="${state.selected === r.bin}"
         aria-label="Bin ${r.bin}${o ? `, your order ${fmtUsd(o.usd)}` : ""}">
       <span class="px">${fmtPrice(r.priceRange?.[0])}</span>
@@ -583,7 +586,7 @@ function renderDetail(plan) {
       <div><dt>Liquidity now</dt><dd>${fmtUsd(r.liquidity)}</dd></div>
       <div><dt>Average liquidity, ${winLabel()}</dt><dd>${fmtUsd(r.liquidityAvg)}</dd></div>
       <div><dt>Volume, ${winLabel()}</dt><dd>${fmtUsd(r.volume)}</dd></div>
-      <div><dt>Swaps, ${winLabel()} and 24h</dt><dd>${r.swaps} and ${r.swaps24}</dd></div>
+      <div><dt>Swaps, ${winLabel()} and 24h</dt><dd>${r.swaps ?? "–"} and ${r.swaps24 ?? "–"}</dd></div>
       <div><dt>Markout ${state.horizon}, ${winLabel()}</dt><dd class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</dd></div>
       <div><dt>Markout ${state.horizon}, 24h</dt><dd class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</dd></div>
       <div><dt>Trading PnL, ${winLabel()}</dt><dd class="${cls(r.pnl)}">${fmtPct(r.pnl)}</dd></div>
@@ -626,6 +629,11 @@ function countUp(el, to) {
 
 function renderTicket(plan) {
   const m = state.meta;
+  if (state.degraded) {
+    $("plan").innerHTML = `<div class="warn">No plan for now: picking bins needs markout from Metric’s per-bin analytics, and they didn’t answer (${esc(state.degraded)}). The ladder still shows where the liquidity sits. <button type="button" class="linkbtn" id="retryBins">Try again</button></div>`;
+    $("retryBins").onclick = () => { BP.clearCache(); loadPool().catch(fail); };
+    return;
+  }
   if (!plan.bins.length) {
     const where = state.have === "both" ? "either side" : `the ${tokenOf(state.have)} side`;
     $("plan").innerHTML = `<div class="empty">No bin on ${esc(where)} earns reliably right now. Try the other token, a longer look-back or another pool.</div>`;
@@ -743,7 +751,7 @@ function renderTable(plan) {
       <td>#${r.bin}${r.bin === state.curBin ? ", active" : ""}</td>
       <td class="num">${r.priceRange ? fmtPrice(r.priceRange[0]) : "–"}</td>
       <td class="${tokenClass[r.side]}">${esc(tokenOf(r.side))}</td>
-      <td>${r.swaps}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
+      <td>${r.swaps ?? "–"}</td><td>${fmtUsd(r.volume)}</td><td>${fmtUsd(r.liquidity)}</td>
       <td class="${cls(r.mkMain)}">${fmtPct(r.mkMain)}</td><td class="${cls(r.mkDay)}">${fmtPct(r.mkDay)}</td>
       <td class="${cls(r.pnl)}">${fmtPct(r.pnl)}</td><td>${r.eligible ? fmtPct(r.score) : "–"}</td></tr>`).join("")}
   </tbody></table>`;
@@ -817,6 +825,7 @@ function renderSettings() {
 function prefetchWindows() {
   const pool = state.pool, chain = state.chain;
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+  if (state.degraded) return; // the analytics just failed; don't hammer them in the background
   idle(() => BP.WINDOWS.filter((w) => w !== state.window).forEach((w) => BP.api.bins(chain, pool, w).catch(() => {})));
 }
 

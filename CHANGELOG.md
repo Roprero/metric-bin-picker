@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+- Works when Metric's per-bin analytics are down. The Metric team confirmed `analytics/bins` is meant for their frontend and
+  may change without notice. If it fails or answers in a new shape, the ladder is now built from the documented order book
+  (`bid_ask?depth=true`): liquidity and price per bin, the active bin and the reference price stay; markout, scores and the
+  plan are marked unavailable, with the reason (`HTTP 503`, a changed shape) and a Try again button. On four live pools
+  across three chains the order-book liquidity matched the analytics to the dollar and the bin edges exactly.
+- `bid_ask` is fetched with depth from the start: same round trip (≈ 0.29 s either way), so the fallback costs no extra call.
+- New tests: 12 offline fallback cases (failed, reshaped and half-failed analytics, both endpoints down) and a browser test
+  with the per-bin endpoint answering 503.
+
 ## 0.7.0
 
 - Fix: expected APR was overstated. The API's markout APR is measured on a bin's average liquidity over the window, but a new

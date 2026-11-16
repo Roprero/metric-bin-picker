@@ -254,37 +254,111 @@
       getJson(`${API}/evm/${chainId}/metadata?include24h=true&addresses=${address}`).then((d) => d.data[0] || null),
     bins: (chainId, address, period) =>
       getJson(`${API}/evm/${chainId}/${address}/analytics/bins?period=${period}&fiat=USD`),
+    // Documented endpoint. The depth costs the same round trip as without it and is the fallback when /analytics/bins is down.
     bidAsk: (chainId, address) =>
-      getJson(`${API}/evm/${chainId}/${address}/bid_ask?depth=false`).then((d) => ({
+      getJson(`${API}/evm/${chainId}/${address}/bid_ask?depth=true`).then((d) => ({
         bid: Number(BigInt(d.bidAdj)) / 2 ** 64,
         ask: Number(BigInt(d.askAdj)) / 2 ** 64,
         status: d.priceProviderStatus,
+        depth: d.depth || null,
       })),
   };
   // The API marks a side the pool refuses with bid 0 or ask 2^128 − 1, i.e. about 2^64 once divided by 2^64.
   const quoteUsable = (q) => !!q && q.bid > 0 && q.ask > 0 && q.ask < 2 ** 63;
 
+  // /analytics/bins is undocumented: Metric built it for its own frontend and may change it without notice.
+  // Check the fields the score reads, so a changed shape degrades the page instead of breaking it.
+  const binsUsable = (d) =>
+    !!d && Array.isArray(d.bins) && Number.isFinite(Number(d.curBinIdx)) &&
+    d.bins.every((b) => b && b.bin !== undefined && Number(b.lengthE6) > 0 && b.token0 && b.token1 && b.swapCount !== undefined);
+
+  const toBig = (s) => { try { return BigInt(s); } catch { return null; } };
+  const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : null; };
+
+  // Liquidity per bin from the documented order book (bid_ask?depth=true) when /analytics/bins is unavailable.
+  // asks list the token0 the pool sells bin by bin from the price up, bids the token1 it sells from the price down;
+  // both are cumulative, so a bin holds the step between neighbours. The active bin shows up on both sides.
+  // There is no markout, swap count or volume here: rows come back ineligible, so the page shows the ladder but no plan.
+  function depthRows(depth, meta, curBin) {
+    const held = new Map(); // bin → [token0 raw, token1 raw]
+    const prices = { asks: [], bids: [] };
+    for (const [side, k] of [["asks", 0], ["bids", 1]]) {
+      let prev = 0n;
+      for (const l of (depth && depth[side]) || []) {
+        const c = toBig(l.cumulativeVolume), i = Number(l.binIdx);
+        if (c === null || !Number.isFinite(i)) continue;
+        const a = held.get(i) || [0n, 0n];
+        a[k] += c > prev ? c - prev : 0n;
+        prev = c > prev ? c : prev;
+        held.set(i, a);
+        const p = toBig(l.price);
+        if (p !== null && p > 0n) prices[side].push([i, Number(p)]);
+      }
+    }
+    if (!held.size) return [];
+    // Bin width from the step between neighbouring bin prices (bins of one pool share a width).
+    const steps = [];
+    for (const list of [prices.asks, prices.bids]) {
+      const s = [...list].sort((a, b) => a[0] - b[0]);
+      for (let k = 1; k < s.length; k++) if (s[k][0] - s[k - 1][0] === 1) steps.push(s[k][1] / s[k - 1][1] - 1);
+    }
+    const lengthE6 = Math.max(1, Math.round((median(steps) || 0) * 1e6));
+    const idx = [...held.keys()];
+    const lo = Math.min(...idx, curBin), hi = Math.max(...idx, curBin);
+    const edges = binEdges(Array.from({ length: hi - lo + 1 }, (_, k) => ({ bin: lo + k, lengthE6 })));
+    const fiat = (raw, dec, px) => (Number(raw) / 10 ** Number(dec || 0)) * (Number(px) || 0);
+    return idx.sort((a, b) => a - b).map((i) => {
+      const [t0, t1] = held.get(i);
+      return {
+        bin: i, edges: edges.get(i), side: sideOf(i, curBin), distance: i - curBin,
+        swaps: null, swaps24: null, volume: null,
+        liquidity: fiat(t0, meta.token0Decimals, meta.token0FiatPrice) + fiat(t1, meta.token1Decimals, meta.token1FiatPrice),
+        liquidityAvg: null, mkMain: null, mkDay: null, pnl: null, cooling: false, poolIdle24h: false,
+        flowUsd: null, score: null, eligible: false, reasons: ["per-bin analytics unavailable"],
+      };
+    });
+  }
+
   // Fetch the main window and the 24h check (once when they are the same) and score the pool.
+  // When /analytics/bins fails or changes shape, fall back to the order book: same ladder, no scores, `degraded` set.
   async function loadScored(chainId, address, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
+    const failed = (e) => ({ error: e });
     const [meta, main, day, quote] = await Promise.all([
       api.pool(chainId, address),
-      api.bins(chainId, address, o.window),
-      o.window === "24h" ? null : api.bins(chainId, address, "24h"),
+      api.bins(chainId, address, o.window).catch(failed),
+      o.window === "24h" ? null : api.bins(chainId, address, "24h").catch(failed),
       api.bidAsk(chainId, address).catch(() => null), // prices are a nice-to-have; the plan works without them
     ]);
+    const ok = binsUsable(main) && (day === null || binsUsable(day));
+    if (!ok) {
+      const bad = [main, day].find((d) => d && !binsUsable(d));
+      // Short reason for the page: "HTTP 503", "timeout", or a changed shape. getJson errors read "<status> <url>".
+      const msg = bad && bad.error ? String(bad.error.message || bad.error) : null;
+      const why = !msg ? "unexpected response shape" : /^\d{3} /.test(msg) ? `HTTP ${msg.slice(0, 3)}` : msg.slice(0, 80);
+      const curBin = meta && Number.isFinite(Number(meta.curBinIdx)) ? Number(meta.curBinIdx) : null;
+      if (!meta || curBin === null || !quote || !quote.depth) {
+        // Nothing documented to fall back on: report the original failure.
+        throw bad && bad.error ? bad.error : new Error(`per-bin analytics: ${why}`);
+      }
+      const rows = depthRows(quote.depth, meta, curBin);
+      const cur = rows.find((r) => r.bin === curBin);
+      const reference = quoteUsable(quote) ? estimateReference({ bid: quote.bid, ask: quote.ask, curEdges: cur && cur.edges }) : null;
+      for (const r of rows) r.priceRange = binPriceRange(r.edges, reference);
+      return { meta, curBin, window: o.window, reference, rows, degraded: why };
+    }
     const dayBins = (day || main).bins;
     const rows = scoreBins(main.bins, dayBins, main.curBinIdx, o);
     const cur = rows.find((r) => r.bin === main.curBinIdx);
     const reference = quoteUsable(quote) ? estimateReference({ bid: quote.bid, ask: quote.ask, curEdges: cur && cur.edges }) : null;
     for (const r of rows) r.priceRange = binPriceRange(r.edges, reference);
-    return { meta, curBin: main.curBinIdx, window: main.window, reference, rows };
+    return { meta, curBin: main.curBinIdx, window: main.window, reference, rows, degraded: null };
   }
 
   const BinPicker = {
     API, WINDOWS, HORIZONS, DEFAULTS, STRATEGIES,
     binEdges, sideOf, scoreBins, dilutedApr, plan, poolWarnings,
-    estimateReference, binPriceRange, filterPools, quoteUsable, api, loadScored, clearCache,
+    estimateReference, binPriceRange, filterPools, quoteUsable, binsUsable, depthRows, api, loadScored, clearCache,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = BinPicker;
   else root.BinPicker = BinPicker;

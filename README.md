@@ -87,11 +87,16 @@ Markout is a past measurement, not a forecast. Read the pool's tier and warnings
 |---|---|
 | `GET /public/v1/chains` | chain list |
 | `GET /public/v1/evm/{chain}/metadata` | pools, tier, curator, fees, pool markout |
-| `GET /public/v1/evm/{chain}/{pool}/bid_ask?depth=false` | reference price estimate |
+| `GET /public/v1/evm/{chain}/{pool}/bid_ask?depth=true` | reference price estimate; liquidity per bin when the per-bin endpoint is down |
 | `GET /public/v1/evm/{chain}/{pool}/analytics/bins?period=24h\|7d\|30d\|all&fiat=USD` | per-bin swaps, volume, liquidity, markout, trading PnL |
 
-The per-bin endpoint is the one the Metric app itself uses. It is public (no key, CORS `*`) but not in the API docs, so it may
-change; the daily CI run against live pools is there to catch that.
+The per-bin endpoint is the one the Metric app itself uses. It is public (no key, CORS `*`) but not in the API docs, and the
+Metric team confirmed it is meant for their frontend and may change without notice. So the page does not depend on it alone:
+
+- if it fails or its shape changes, the ladder is rebuilt from the documented order book (`bid_ask?depth=true` and
+  `metadata`): liquidity and price per bin, the active bin and the reference stay; markout, scores and the plan are shown as
+  unavailable until the endpoint answers again;
+- the daily CI run against live pools reports a change the same day.
 
 ## Speed
 
@@ -114,9 +119,9 @@ in the Metric app, where you check what you sign.
 
 ```bash
 npm start           # http://127.0.0.1:8765
-npm test            # offline: core scoring + 24 user scenarios
+npm test            # offline: core scoring, 24 user scenarios, 12 fallback cases
 npm run test:live   # every window × horizon × strategy on live pools
-npm run test:ui     # the page in headless Chrome for 8 shareable links
+npm run test:ui     # the page in headless Chrome: shareable links and the fallback with the per-bin endpoint down
 ```
 
 GitHub Actions runs the offline tests on every push and the live and browser tests daily. Pushing to `main` deploys the page to
