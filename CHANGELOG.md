@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+- Telegram alerts bot, [@binpickermetricbot](https://t.me/binpickermetricbot), asked for in #feedback. Send it a wallet
+  address and it checks every 5 minutes: bins with no swaps in 24h (or far from the price when per-bin analytics are down),
+  negative 5m markout, a changed curator or Metric share of the spread, a tier downgrade, a pause or a price feed that is
+  not healthy. One alert per change, an all-clear after two clean checks, no repeat within an hour.
+- Stores only chat ids, public addresses and alert states; `/stop` deletes them. Pasted private keys or seed phrases are
+  deleted and never stored.
+- Node 20, no dependencies, reuses `core.js`; a hardened systemd unit is in `deploy/`. 21 offline tests run with `npm test`.
+
 ## 0.8.0
 
 - Works when Metric's per-bin analytics are down. The Metric team confirmed `analytics/bins` is meant for their frontend and

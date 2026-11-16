@@ -119,7 +119,7 @@ in the Metric app, where you check what you sign.
 
 ```bash
 npm start           # http://127.0.0.1:8765
-npm test            # offline: core scoring, 24 user scenarios, 12 fallback cases
+npm test            # offline: core scoring, 24 user scenarios, 12 fallback cases, 21 bot cases
 npm run test:live   # every window × horizon × strategy on live pools
 npm run test:ui     # the page in headless Chrome: shareable links and the fallback with the per-bin endpoint down
 ```
@@ -129,8 +129,13 @@ GitHub Pages (Settings → Pages → Source: GitHub Actions). See [CONTRIBUTING.
 
 ## Roadmap
 
-From #feedback, not built yet: alerts when your bins stop trading or a pool's fee share changes; side-by-side pool comparison;
-curator track record.
+From #feedback, not built yet: side-by-side pool comparison; curator track record.
+
+## Alerts in Telegram
+
+[@binpickermetricbot](https://t.me/binpickermetricbot) watches a wallet's Metric positions and writes when its bins stop
+trading, its markout turns negative, or a pool changes its fee share, gets a worse tier, pauses or loses its price feed.
+Public addresses only. Code and setup: [bot/](bot/README.md).
 
 ## License
 

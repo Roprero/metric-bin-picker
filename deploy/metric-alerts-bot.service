@@ -1,0 +1,47 @@
+# Metric alerts Telegram bot. Install: see bot/README.md.
+# Runs as a throwaway user (DynamicUser), reads the token from an EnvironmentFile only root can read,
+# keeps its state in /var/lib/metric-alerts-bot, needs outbound HTTPS only (long polling, no open port).
+[Unit]
+Description=Metric alerts Telegram bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/metric-alerts-bot/bot/main.js
+EnvironmentFile=/root/.secrets/metric-bot.env
+DynamicUser=yes
+StateDirectory=metric-alerts-bot
+StateDirectoryMode=0700
+Restart=always
+RestartSec=10
+MemoryMax=256M
+TasksMax=64
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# a filtered call fails with EPERM instead of killing Node; libuv then skips io_uring
+SystemCallErrorNumber=EPERM
+Environment=UV_USE_IO_URING=0
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
